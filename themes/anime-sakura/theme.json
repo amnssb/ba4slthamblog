@@ -1,0 +1,63 @@
+{
+  "name": "樱花少女",
+  "id": "anime-sakura",
+  "author": "默认",
+  "version": "1.0.0",
+  "description": "粉色梦幻二次元风格，磨砂玻璃质感",
+  "colors": {
+    "primary": "#f472b6",
+    "primaryDark": "#db2777",
+    "secondary": "#a78bfa",
+    "accent": "#22d3ee",
+    "background": "#fef3f3",
+    "backgroundGradient": "linear-gradient(135deg, #fef3f3 0%, #ede9fe 50%, #dbeafe 100%)",
+    "surface": "rgba(255, 255, 255, 0.75)",
+    "surfaceHover": "rgba(255, 255, 255, 0.9)",
+    "text": "#374151",
+    "textMuted": "#6b7280",
+    "textLight": "#9ca3af",
+    "border": "rgba(255, 255, 255, 0.5)",
+    "shadow": "rgba(244, 114, 182, 0.15)"
+  },
+  "darkColors": {
+    "background": "#1a1a2e",
+    "backgroundGradient": "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f172a 100%)",
+    "surface": "rgba(30, 41, 59, 0.8)",
+    "surfaceHover": "rgba(51, 65, 85, 0.9)",
+    "text": "#f3f4f6",
+    "textMuted": "#9ca3af",
+    "border": "rgba(255, 255, 255, 0.1)"
+  },
+  "glass": {
+    "blur": "20px",
+    "saturate": "180%",
+    "brightness": "105%"
+  },
+  "radius": {
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "full": "9999px"
+  },
+  "typography": {
+    "titleFont": "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif",
+    "bodyFont": "'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif",
+    "codeFont": "'JetBrains Mono', 'Fira Code', monospace"
+  },
+  "effects": {
+    "particle": "sakura",
+    "particleCount": 30,
+    "glow": true,
+    "animationSpeed": "normal",
+    "hoverLift": true
+  },
+  "spacing": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "2xl": "48px"
+  }
+}

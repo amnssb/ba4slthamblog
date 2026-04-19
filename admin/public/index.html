@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌸 博客管理后台</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar glass">
+      <div class="sidebar-header">
+        <div class="logo">🌸</div>
+        <h1>博客管理</h1>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#dashboard" class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">仪表盘</span>
+        </a>
+        <a href="#posts" class="nav-item" data-view="posts">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">文章管理</span>
+        </a>
+        <a href="#logs" class="nav-item" data-view="logs">
+          <span class="nav-icon">📡</span>
+          <span class="nav-text">通联日志</span>
+        </a>
+
+        <a href="#friends" class="nav-item" data-view="friends">
+          <span class="nav-icon">🔗</span>
+          <span class="nav-text">友链管理</span>
+        </a>
+        <a href="#theme" class="nav-item" data-view="theme">
+          <span class="nav-icon">🎨</span>
+          <span class="nav-text">主题设置</span>
+        </a>
+        <a href="#settings" class="nav-item" data-view="settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-text">站点配置</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="btn-primary glass-btn" id="btn-build">
+          <span>🔨</span> 构建站点
+        </button>
+        <button class="btn-secondary glass-btn" id="btn-preview">
+          <span>👁️</span> 预览
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Dashboard View -->
+      <section id="view-dashboard" class="view active">
+        <h2 class="page-title">📊 仪表盘</h2>
+        <div class="stats-grid">
+          <div class="stat-card glass">
+            <div class="stat-icon">📝</div>
+            <div class="stat-value" id="stat-posts">-</div>
+            <div class="stat-label">文章总数</div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-icon">📡</div>
+            <div class="stat-value" id="stat-logs">-</div>
+            <div class="stat-label">通联日志</div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-icon">🏷️</div>
+            <div class="stat-value" id="stat-tags">-</div>
+            <div class="stat-label">标签数量</div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-icon">🔗</div>
+            <div class="stat-value" id="stat-friends">-</div>
+            <div class="stat-label">友链数量</div>
+          </div>
+        </div>
+        <div class="dashboard-panels">
+          <div class="recent-posts glass">
+            <h3>最近文章</h3>
+            <div id="recent-posts-list" class="post-list-mini">
+              <div class="loading">加载中...</div>
+            </div>
+          </div>
+          <div class="recent-posts glass">
+            <h3>最近通联</h3>
+            <div id="recent-logs-list" class="post-list-mini">
+              <div class="loading">加载中...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Posts View -->
+      <section id="view-posts" class="view">
+        <div class="view-header">
+          <h2 class="page-title">📝 文章管理</h2>
+          <button class="btn-primary glass-btn" id="btn-new-post">
+            <span>+</span> 新建文章
+          </button>
+        </div>
+        <div class="posts-grid" id="posts-grid">
+          <div class="loading">加载中...</div>
+        </div>
+      </section>
+
+      <!-- Logs View -->
+      <section id="view-logs" class="view">
+        <div class="view-header">
+          <h2 class="page-title">📡 通联日志</h2>
+          <button class="btn-primary glass-btn" id="btn-new-log">
+            <span>+</span> 新建日志
+          </button>
+        </div>
+        
+        <!-- Log Stats -->
+        <div class="logs-stats glass" id="logs-stats">
+          <div class="logs-stat-item">
+            <span class="logs-stat-value" id="log-total">0</span>
+            <span class="logs-stat-label">总通联</span>
+          </div>
+          <div class="logs-stat-item">
+            <span class="logs-stat-value" id="log-bands">0</span>
+            <span class="logs-stat-label">频段数</span>
+          </div>
+          <div class="logs-stat-item">
+            <span class="logs-stat-value" id="log-modes">0</span>
+            <span class="logs-stat-label">模式数</span>
+          </div>
+        </div>
+        
+        <!-- Log Filters -->
+        <div class="logs-filters glass">
+          <div class="filter-row">
+            <input type="text" id="log-search" class="glass-input" placeholder="搜索呼号、频段、模式...">
+            <input type="date" id="log-date-from" class="glass-input" placeholder="开始日期">
+            <input type="date" id="log-date-to" class="glass-input" placeholder="结束日期">
+            <select id="log-filter-band" class="glass-input">
+              <option value="">全部频段</option>
+              <option value="160m">160m</option>
+              <option value="80m">80m</option>
+              <option value="40m">40m</option>
+              <option value="30m">30m</option>
+              <option value="20m">20m</option>
+              <option value="17m">17m</option>
+              <option value="15m">15m</option>
+              <option value="12m">12m</option>
+              <option value="10m">10m</option>
+              <option value="6m">6m</option>
+              <option value="2m">2m</option>
+              <option value="70cm">70cm</option>
+            </select>
+            <select id="log-filter-mode" class="glass-input">
+              <option value="">全部模式</option>
+              <option value="SSB">SSB</option>
+              <option value="CW">CW</option>
+              <option value="FM">FM</option>
+              <option value="AM">AM</option>
+              <option value="FT8">FT8</option>
+              <option value="FT4">FT4</option>
+              <option value="JT65">JT65</option>
+              <option value="RTTY">RTTY</option>
+            </select>
+            <button class="btn-secondary glass-btn" id="btn-reset-log-filters">重置</button>
+          </div>
+        </div>
+        
+        <!-- Log Table -->
+        <div class="logs-table-wrapper glass">
+          <table class="logs-table-admin" id="logs-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>日期</th>
+                <th>时间</th>
+                <th>呼号</th>
+                <th>频段</th>
+                <th>频率</th>
+                <th>模式</th>
+                <th>信号</th>
+                <th>位置</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody">
+              <tr><td colspan="10" class="loading-cell">加载中...</td></tr>
+            </tbody>
+          </table>
+          <div id="logs-empty" class="logs-empty hidden">
+            <div class="empty-icon">📡</div>
+            <p>暂无通联记录</p>
+            <button class="btn-primary glass-btn" id="btn-new-log-empty">添加第一条日志</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Post Editor -->
+      <section id="view-editor" class="view">
+        <div class="view-header">
+          <button class="btn-icon" id="btn-back">←</button>
+          <h2 class="page-title" id="editor-title">编辑文章</h2>
+          <div class="editor-actions">
+            <button class="btn-secondary glass-btn" id="btn-draft">保存草稿</button>
+            <button class="btn-primary glass-btn" id="btn-publish">发布</button>
+          </div>
+        </div>
+        <div class="editor-layout">
+          <div class="editor-meta glass">
+            <div class="form-group">
+              <label>标题</label>
+              <input type="text" id="post-title" class="glass-input" placeholder="文章标题">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>日期</label>
+                <input type="date" id="post-date" class="glass-input">
+              </div>
+              <div class="form-group">
+                <label>分类</label>
+                <select id="post-category" class="glass-input">
+                  <option value="ham-radio">业余无线电</option>
+                  <option value="daily">日常</option>
+                  <option value="tech">技术</option>
+                  <option value="other">其他</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>标签（逗号分隔）</label>
+              <input type="text" id="post-tags" class="glass-input" placeholder="ham-radio, qso, hf">
+            </div>
+            <div class="form-group">
+              <label>封面图</label>
+              <input type="url" id="post-cover-url" class="glass-input" placeholder="https://your-image-host/cover.jpg">
+            </div>
+          </div>
+          <div class="editor-body">
+            <div class="editor-tabs">
+              <button class="tab-btn active" data-tab="edit">编辑</button>
+              <button class="tab-btn" data-tab="preview">预览</button>
+            </div>
+            <div class="tab-content" id="tab-edit">
+              <textarea id="post-content" class="glass-textarea" placeholder="# 开始写作...
+
+支持 Markdown 语法"></textarea>
+            </div>
+            <div class="tab-content hidden" id="tab-preview">
+              <div id="preview-content" class="preview-pane"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Log Editor -->
+      <section id="view-log-editor" class="view">
+        <div class="view-header">
+          <button class="btn-icon" id="btn-back-log">←</button>
+          <h2 class="page-title" id="log-editor-title">新建通联日志</h2>
+          <div class="editor-actions">
+            <button class="btn-primary glass-btn" id="btn-save-log">保存日志</button>
+          </div>
+        </div>
+        <div class="editor-layout editor-layout-log">
+          <div class="editor-meta glass">
+            <div class="form-group">
+              <label>日期</label>
+              <input type="date" id="log-date" class="glass-input">
+            </div>
+            <div class="form-group">
+              <label>时间</label>
+              <input type="text" id="log-time" class="glass-input" placeholder="14:30 UTC">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>对方呼号</label>
+                <input type="text" id="log-callsign" class="glass-input" placeholder="JA1XYZ">
+              </div>
+              <div class="form-group">
+                <label>频段</label>
+                <input type="text" id="log-band" class="glass-input" placeholder="40m">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>频率</label>
+                <input type="text" id="log-frequency" class="glass-input" placeholder="7.050 MHz">
+              </div>
+              <div class="form-group">
+                <label>模式</label>
+                <input type="text" id="log-mode" class="glass-input" placeholder="SSB">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>发出信号</label>
+                <input type="text" id="log-rst-sent" class="glass-input" placeholder="59">
+              </div>
+              <div class="form-group">
+                <label>收到信号</label>
+                <input type="text" id="log-rst-received" class="glass-input" placeholder="59">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>对方位置</label>
+                <input type="text" id="log-qth" class="glass-input" placeholder="东京，日本">
+              </div>
+              <div class="form-group">
+                <label>功率</label>
+                <input type="text" id="log-power" class="glass-input" placeholder="100W">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>设备</label>
+              <input type="text" id="log-rig" class="glass-input" placeholder="ICOM IC-7300">
+            </div>
+            <div class="form-group">
+              <label>天线</label>
+              <input type="text" id="log-antenna" class="glass-input" placeholder="DP 天线">
+            </div>
+          </div>
+          <div class="editor-body">
+            <div class="editor-tabs">
+              <button class="tab-btn active" data-tab="log-notes">备注</button>
+            </div>
+            <div class="tab-content" id="tab-log-notes">
+              <textarea id="log-notes" class="glass-textarea" placeholder="记录本次通联过程、传播情况、设备表现、感受等..."></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Friends View -->
+      <section id="view-friends" class="view">
+        <div class="view-header">
+          <h2 class="page-title">🔗 友链管理</h2>
+          <button class="btn-primary glass-btn" id="btn-new-friend">
+            <span>+</span> 添加友链
+          </button>
+        </div>
+        <div class="friends-grid" id="friends-grid">
+          <div class="loading">加载中...</div>
+        </div>
+      </section>
+
+      <!-- Friend Editor Modal -->
+      <div id="friend-modal" class="modal glass hidden">
+        <div class="modal-content">
+          <h3 id="friend-modal-title">添加友链</h3>
+          <div class="form-group">
+            <label>名称</label>
+            <input type="text" id="friend-name" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>URL</label>
+            <input type="url" id="friend-url" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>描述</label>
+            <input type="text" id="friend-desc" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>头像 URL</label>
+            <input type="url" id="friend-avatar" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>分组</label>
+            <select id="friend-group" class="glass-input">
+              <option value="ham">HAM 友台</option>
+              <option value="tech">技术</option>
+              <option value="life">生活</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-secondary glass-btn" id="btn-cancel-friend">取消</button>
+            <button class="btn-primary glass-btn" id="btn-save-friend">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Theme View -->
+      <section id="view-theme" class="view">
+        <h2 class="page-title">🎨 主题设置</h2>
+        <div class="theme-preview glass">
+          <h3>当前主题预览</h3>
+          <div class="preview-box" id="theme-preview-box">
+            <div class="preview-card glass">卡片预览</div>
+            <button class="preview-btn glass-btn">按钮预览</button>
+          </div>
+        </div>
+        <div class="theme-settings glass">
+          <h3>自定义设置</h3>
+          <div class="settings-grid">
+            <div class="form-group">
+              <label>主色调</label>
+              <input type="color" id="theme-primary" class="glass-input" value="#f472b6">
+            </div>
+            <div class="form-group">
+              <label>模糊度</label>
+              <input type="range" id="theme-blur" min="5" max="50" value="20">
+              <span id="blur-value">20px</span>
+            </div>
+            <div class="form-group">
+              <label>圆角大小</label>
+              <input type="range" id="theme-radius" min="0" max="32" value="16">
+              <span id="radius-value">16px</span>
+            </div>
+            <div class="form-group">
+              <label>背景类型</label>
+              <select id="theme-bg-type" class="glass-input">
+                <option value="gradient">渐变</option>
+                <option value="particle">粒子动画</option>
+                <option value="image">自定义图片</option>
+                <option value="solid">纯色</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn-primary glass-btn" id="btn-save-theme">保存主题</button>
+        </div>
+      </section>
+
+      <!-- Settings View -->
+      <section id="view-settings" class="view">
+        <h2 class="page-title">⚙️ 站点配置</h2>
+        <div class="settings-form glass">
+          <div class="form-group">
+            <label>站点标题</label>
+            <input type="text" id="site-title" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>副标题</label>
+            <input type="text" id="site-subtitle" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>描述</label>
+            <textarea id="site-desc" class="glass-textarea" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label>作者名</label>
+            <input type="text" id="site-author" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>呼号</label>
+            <input type="text" id="site-callsign" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>邮箱</label>
+            <input type="email" id="site-email" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>域名</label>
+            <input type="url" id="site-url" class="glass-input">
+          </div>
+          <div class="form-group">
+            <label>每页文章数</label>
+            <input type="number" id="site-perpage" class="glass-input" min="1" max="50">
+          </div>
+          <button class="btn-primary glass-btn" id="btn-save-config">保存配置</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Build Status -->
+    <div id="build-status" class="build-toast hidden">
+      <span id="build-icon">🔨</span>
+      <span id="build-text">构建中...</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

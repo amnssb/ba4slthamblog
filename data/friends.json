@@ -1,0 +1,30 @@
+[
+  {
+    "name": "BD7XXX 的电台",
+    "url": "https://example.com",
+    "desc": "一位资深火腿的技术博客",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=BD7XXX",
+    "group": "ham"
+  },
+  {
+    "name": "业余无线电中国",
+    "url": "https://www.crac.org.cn",
+    "desc": "中国无线电协会业余无线电分会官网",
+    "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=crac",
+    "group": "ham"
+  },
+  {
+    "name": "QRZ.com",
+    "url": "https://www.qrz.com",
+    "desc": "全球最大的业余无线电数据库",
+    "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=qrz",
+    "group": "ham"
+  },
+  {
+    "name": "技术博客示例",
+    "url": "https://example.tech",
+    "desc": "分享前端开发与技术架构",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=tech",
+    "group": "tech"
+  }
+]
