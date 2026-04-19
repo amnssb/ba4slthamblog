@@ -1,8 +1,9 @@
 ---
-title: 博客开张
+title: test
 date: 2026-04-18
 tags: [daily, blog]
-category: daily
+category: other
+cover: https://img.11451478.xyz/1770474552956.jpg
 ---
 
 ## Hello World

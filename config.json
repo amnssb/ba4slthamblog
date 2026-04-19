@@ -1,27 +1,57 @@
 {
-  "title": "业余无线电笔记",
-  "subtitle": "一位HAM的电波之旅",
+  "title": "BA4SLT",
+  "subtitle": "BA4SLT",
   "description": "记录通联日志、设备评测、天线制作与日常随想",
-  "url": "https://your-domain.com",
-  "author": "BG7XXX",
-  "email": "your@email.com",
-  "callsign": "BG7XXX",
+  "url": "https://ba4slt.cn",
+  "author": "amnssb",
+  "email": "ba4sltba4slt@gmail.com",
+  "callsign": "BA4SLT",
   "language": "zh-CN",
   "postsPerPage": 6,
   "theme": "anime-sakura",
   "nav": [
-    { "text": "首页", "url": "/", "icon": "🏠" },
-    { "text": "通联日志", "url": "/logs/", "icon": "📡" },
-    { "text": "日常", "url": "/tag/daily/", "icon": "📝" },
-    { "text": "友链", "url": "/friends/", "icon": "🔗" },
-    { "text": "关于", "url": "/about/", "icon": "👋" }
+    {
+      "text": "首页",
+      "url": "/",
+      "icon": "🏠"
+    },
+    {
+      "text": "通联日志",
+      "url": "/logs/",
+      "icon": "📡"
+    },
+    {
+      "text": "日常",
+      "url": "/tag/daily/",
+      "icon": "📝"
+    },
+    {
+      "text": "友链",
+      "url": "/friends/",
+      "icon": "🔗"
+    },
+    {
+      "text": "关于",
+      "url": "/about/",
+      "icon": "👋"
+    }
   ],
   "features": {
-    "pwa": { "enabled": true },
-    "search": { "enabled": true },
-    "friends": { "enabled": true },
-    "comments": { "enabled": false },
-    "analytics": { "enabled": false }
+    "pwa": {
+      "enabled": true
+    },
+    "search": {
+      "enabled": true
+    },
+    "friends": {
+      "enabled": true
+    },
+    "comments": {
+      "enabled": false
+    },
+    "analytics": {
+      "enabled": false
+    }
   },
   "background": {
     "type": "particle",

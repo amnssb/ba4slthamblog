@@ -1,13 +1,13 @@
 [
   {
-    "name": "BD7XXX 的电台",
-    "url": "https://example.com",
-    "desc": "一位资深火腿的技术博客",
-    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=BD7XXX",
+    "name": "BA4SBF",
+    "url": "https://ba4sbf.cn",
+    "desc": "BA4SBF的blog",
+    "avatar": "https://ba4sbf.cn/_astro/avatar.D1wl0BsZ_ZLWX9U.webp",
     "group": "ham"
   },
   {
-    "name": "业余无线电中国",
+    "name": "CRAC",
     "url": "https://www.crac.org.cn",
     "desc": "中国无线电协会业余无线电分会官网",
     "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=crac",
@@ -19,12 +19,5 @@
     "desc": "全球最大的业余无线电数据库",
     "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=qrz",
     "group": "ham"
-  },
-  {
-    "name": "技术博客示例",
-    "url": "https://example.tech",
-    "desc": "分享前端开发与技术架构",
-    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=tech",
-    "group": "tech"
   }
 ]
