@@ -12,7 +12,7 @@ cover: https://img.11451478.xyz/1770474552956.jpg
 
 ## 关于这个博客
 
-这个博客是完全自研的静态博客引擎，使用纯 Node.js 构建，零框架依赖。部署在 Cloudflare Pages 上，加载速度快，维护简单。
+这个博客是使用纯 Node.js 构建，零框架依赖。部署在 Cloudflare Pages 上，加载速度快，维护简单。
 
 ## 未来计划
 
