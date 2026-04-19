@@ -32,6 +32,22 @@
           <span class="nav-icon">🔗</span>
           <span class="nav-text">友链管理</span>
         </a>
+        <a href="#about" class="nav-item" data-view="about">
+          <span class="nav-icon">👋</span>
+          <span class="nav-text">关于页面</span>
+        </a>
+        <a href="#images" class="nav-item" data-view="images">
+          <span class="nav-icon">🖼️</span>
+          <span class="nav-text">图片管理</span>
+        </a>
+        <a href="#tags" class="nav-item" data-view="tags">
+          <span class="nav-icon">🏷️</span>
+          <span class="nav-text">标签管理</span>
+        </a>
+        <a href="#nav" class="nav-item" data-view="nav">
+          <span class="nav-icon">🧭</span>
+          <span class="nav-text">导航菜单</span>
+        </a>
         <a href="#theme" class="nav-item" data-view="theme">
           <span class="nav-icon">🎨</span>
           <span class="nav-text">主题设置</span>
@@ -101,6 +117,18 @@
           <button class="btn-primary glass-btn" id="btn-new-post">
             <span>+</span> 新建文章
           </button>
+        </div>
+        <div class="posts-filters glass">
+          <div class="filter-row">
+            <input type="text" class="glass-input" id="post-search" placeholder="🔍 搜索文章标题...">
+            <select class="glass-input" id="post-category-filter">
+              <option value="">所有分类</option>
+            </select>
+            <select class="glass-input" id="post-tag-filter">
+              <option value="">所有标签</option>
+            </select>
+            <button class="glass-btn" id="btn-clear-post-filters">清除筛选</button>
+          </div>
         </div>
         <div class="posts-grid" id="posts-grid">
           <div class="loading">加载中...</div>
@@ -382,44 +410,125 @@
         </div>
       </div>
 
+      <!-- About View -->
+      <section id="view-about" class="view">
+        <div class="view-header">
+          <h2 class="page-title">👋 关于页面</h2>
+          <button class="btn-primary glass-btn" id="btn-save-about">保存</button>
+        </div>
+        <div class="editor-layout">
+          <div class="editor-meta glass">
+            <p>编辑"关于"页面的内容，支持 Markdown 语法。</p>
+          </div>
+          <div class="editor-body">
+            <div class="editor-tabs">
+              <button class="tab-btn active" data-tab="about-edit">编辑</button>
+              <button class="tab-btn" data-tab="about-preview">预览</button>
+            </div>
+            <div class="tab-content" id="tab-about-edit">
+              <textarea id="about-content" class="glass-textarea" placeholder="# 关于我
+
+在这里写下你的个人介绍...
+
+## 业余无线电
+
+- 呼号：BG7XXX
+- 入会时间：2024年
+- 常守频段：40m、20m
+
+## 联系方式
+
+- Email: your@email.com
+- GitHub: github.com/yourname"></textarea>
+            </div>
+            <div class="tab-content hidden" id="tab-about-preview">
+              <div id="about-preview-content" class="preview-pane"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Images View -->
+      <section id="view-images" class="view">
+        <div class="view-header">
+          <h2 class="page-title">🖼️ 图片管理</h2>
+          <div class="view-actions">
+            <input type="file" id="image-upload-input" accept="image/*" multiple class="hidden">
+            <button class="btn-primary glass-btn" id="btn-upload-image">
+              <span>📤</span> 上传图片
+            </button>
+          </div>
+        </div>
+        <div class="images-grid" id="images-grid">
+          <div class="loading">加载中...</div>
+        </div>
+        <div id="images-empty" class="images-empty hidden">
+          <div class="empty-icon">🖼️</div>
+          <p>暂无图片</p>
+          <button class="btn-primary glass-btn" id="btn-upload-empty">上传第一张图片</button>
+        </div>
+      </section>
+
+      <!-- Tags View -->
+      <section id="view-tags" class="view">
+        <div class="view-header">
+          <h2 class="page-title">🏷️ 标签管理</h2>
+          <div class="view-actions">
+            <input type="text" id="new-tag-input" class="glass-input" placeholder="输入新标签名称...">
+            <button class="btn-primary glass-btn" id="btn-add-tag">添加标签</button>
+          </div>
+        </div>
+        <div class="tags-stats glass" id="tags-stats">
+          <div class="tags-stat-item">
+            <span class="tags-stat-value" id="total-tags">0</span>
+            <span class="tags-stat-label">标签总数</span>
+          </div>
+          <div class="tags-stat-item">
+            <span class="tags-stat-value" id="used-tags">0</span>
+            <span class="tags-stat-label">在用标签</span>
+          </div>
+        </div>
+        <div class="tags-container" id="tags-container">
+          <div class="loading">加载中...</div>
+        </div>
+      </section>
+
+      <!-- Navigation View -->
+      <section id="view-nav" class="view">
+        <div class="view-header">
+          <h2 class="page-title">🧭 导航菜单</h2>
+          <button class="btn-primary glass-btn" id="btn-add-nav">添加菜单项</button>
+        </div>
+        <div class="nav-editor glass">
+          <p class="nav-hint">拖拽调整菜单顺序，点击编辑或删除</p>
+          <div class="nav-items-list" id="nav-items-list">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+        <div class="nav-actions">
+          <button class="btn-primary glass-btn" id="btn-save-nav">保存导航</button>
+        </div>
+      </section>
+
       <!-- Theme View -->
       <section id="view-theme" class="view">
         <h2 class="page-title">🎨 主题设置</h2>
         <div class="theme-preview glass">
-          <h3>当前主题预览</h3>
-          <div class="preview-box" id="theme-preview-box">
+          <h3>主题预览</h3>
+          <div class="preview-box">
             <div class="preview-card glass">卡片预览</div>
             <button class="preview-btn glass-btn">按钮预览</button>
           </div>
         </div>
         <div class="theme-settings glass">
-          <h3>自定义设置</h3>
-          <div class="settings-grid">
-            <div class="form-group">
-              <label>主色调</label>
-              <input type="color" id="theme-primary" class="glass-input" value="#f472b6">
-            </div>
-            <div class="form-group">
-              <label>模糊度</label>
-              <input type="range" id="theme-blur" min="5" max="50" value="20">
-              <span id="blur-value">20px</span>
-            </div>
-            <div class="form-group">
-              <label>圆角大小</label>
-              <input type="range" id="theme-radius" min="0" max="32" value="16">
-              <span id="radius-value">16px</span>
-            </div>
-            <div class="form-group">
-              <label>背景类型</label>
-              <select id="theme-bg-type" class="glass-input">
-                <option value="gradient">渐变</option>
-                <option value="particle">粒子动画</option>
-                <option value="image">自定义图片</option>
-                <option value="solid">纯色</option>
-              </select>
-            </div>
+          <h3>主题配置</h3>
+          <div class="settings-grid" id="theme-settings-grid">
+            <!-- 动态生成 -->
           </div>
-          <button class="btn-primary glass-btn" id="btn-save-theme">保存主题</button>
+          <div class="theme-actions">
+            <button class="btn-primary glass-btn" id="btn-save-theme">保存主题设置</button>
+            <button class="glass-btn" id="btn-reset-theme">重置为默认</button>
+          </div>
         </div>
       </section>
 

@@ -15,6 +15,11 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '');
 }
 
+function getLogTitle(log) {
+  if (log.title) return log.title;
+  return [log.date, log.callsign, log.band, log.mode].filter(Boolean).join(' ') || '未命名日志';
+}
+
 function parseFrontmatter(content) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
@@ -58,6 +63,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initPostEditor();
   initLogEditor();
   initFriends();
+  initAbout();
+  initImages();
+  initTags();
+  initNav();
   initSettings();
   initTheme();
   loadDashboard();
@@ -85,6 +94,10 @@ function switchView(view) {
     case 'posts': loadPosts(); break;
     case 'logs': loadLogs(); break;
     case 'friends': loadFriends(); break;
+    case 'about': loadAbout(); break;
+    case 'images': loadImages(); break;
+    case 'tags': loadTags(); break;
+    case 'nav': loadNav(); break;
     case 'settings': loadSettings(); break;
     case 'theme': updateThemePreview(); break;
   }
@@ -152,26 +165,10 @@ async function loadDashboard() {
 
 async function loadPosts() {
   posts = await fetchJson('/api/posts');
-
-  const grid = document.getElementById('posts-grid');
-  grid.innerHTML = posts.map((post) => `
-    <div class="post-card glass" onclick="editPost('${post.path}')">
-      <div class="post-card-header">
-        <div class="post-card-cover"${post.cover ? ` style="background-image:url('${post.cover}'); background-size:cover; background-position:center;"` : ''}></div>
-        <div class="post-card-info">
-          <div class="post-card-title">${post.title}</div>
-          <div class="post-card-meta">${post.date} · ${post.category}</div>
-        </div>
-      </div>
-      <div class="post-card-tags">
-        ${post.tags?.map((tag) => `<span class="tag">${tag}</span>`).join('') || ''}
-      </div>
-      <div class="post-card-actions">
-        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); editPost('${post.path}')">编辑</button>
-        <button class="glass-btn btn-sm btn-danger" onclick="event.stopPropagation(); deletePost('${post.path}')">删除</button>
-      </div>
-    </div>
-  `).join('') || '<div class="empty">暂无文章</div>';
+  filteredPosts = [...posts];
+  
+  updateFilterOptions();
+  renderPostsList();
 }
 
 function editPost(path) {
@@ -222,6 +219,78 @@ function initPostEditor() {
       }
     });
   });
+
+  // Post filters
+  document.getElementById('post-search')?.addEventListener('input', filterPosts);
+  document.getElementById('post-category-filter')?.addEventListener('change', filterPosts);
+  document.getElementById('post-tag-filter')?.addEventListener('change', filterPosts);
+  document.getElementById('btn-clear-post-filters')?.addEventListener('click', clearPostFilters);
+}
+
+function filterPosts() {
+  const search = document.getElementById('post-search').value.toLowerCase();
+  const category = document.getElementById('post-category-filter').value;
+  const tag = document.getElementById('post-tag-filter').value;
+
+  filteredPosts = posts.filter(post => {
+    const matchesSearch = !search || post.title.toLowerCase().includes(search);
+    const matchesCategory = !category || post.category === category;
+    const matchesTag = !tag || (post.tags && post.tags.includes(tag));
+    return matchesSearch && matchesCategory && matchesTag;
+  });
+
+  renderPostsList();
+}
+
+function clearPostFilters() {
+  document.getElementById('post-search').value = '';
+  document.getElementById('post-category-filter').value = '';
+  document.getElementById('post-tag-filter').value = '';
+  filteredPosts = [...posts];
+  renderPostsList();
+}
+
+function renderPostsList() {
+  const grid = document.getElementById('posts-grid');
+  
+  if (!filteredPosts.length) {
+    grid.innerHTML = '<div class="empty">没有找到文章</div>';
+    return;
+  }
+
+  grid.innerHTML = filteredPosts.map((post) => `
+    <div class="post-card glass" onclick="editPost('${post.path}')">
+      <div class="post-card-header">
+        <div class="post-card-cover"${post.cover ? ` style="background-image:url('${post.cover}'); background-size:cover; background-position:center;"` : ''}></div>
+        <div class="post-card-info">
+          <div class="post-card-title">${post.title}</div>
+          <div class="post-card-meta">${post.date} · ${post.category}</div>
+        </div>
+      </div>
+      <div class="post-card-tags">
+        ${post.tags?.map((tag) => `<span class="tag">${tag}</span>`).join('') || ''}
+      </div>
+      <div class="post-card-actions">
+        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); editPost('${post.path}')">编辑</button>
+        <button class="glass-btn btn-sm btn-danger" onclick="event.stopPropagation(); deletePost('${post.path}')">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateFilterOptions() {
+  // Extract unique categories and tags
+  const categories = [...new Set(posts.filter(p => p.category).map(p => p.category))];
+  const allTags = [...new Set(posts.flatMap(p => p.tags || []))];
+
+  const categorySelect = document.getElementById('post-category-filter');
+  const tagSelect = document.getElementById('post-tag-filter');
+
+  categorySelect.innerHTML = '<option value="">所有分类</option>' + 
+    categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  tagSelect.innerHTML = '<option value="">所有标签</option>' + 
+    allTags.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
 function updatePostPreview() {
@@ -651,36 +720,107 @@ function initSettings() {
   });
 }
 
+const defaultTheme = {
+  primary: '#f472b6',
+  secondary: '#a78bfa',
+  blur: 20,
+  radius: 16,
+  shadowOpacity: 0.1,
+  bgType: 'gradient',
+  bgGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+};
+
+async function loadTheme() {
+  try {
+    const saved = localStorage.getItem('ham-blog-theme');
+    currentTheme = saved ? JSON.parse(saved) : { ...defaultTheme };
+    applyTheme(currentTheme);
+    renderThemeSettings();
+  } catch (e) {
+    currentTheme = { ...defaultTheme };
+  }
+}
+
 function initTheme() {
-  const primary = document.getElementById('theme-primary');
-  const blur = document.getElementById('theme-blur');
-  const radius = document.getElementById('theme-radius');
+  loadTheme();
+  
+  document.getElementById('btn-save-theme')?.addEventListener('click', saveTheme);
+  document.getElementById('btn-reset-theme')?.addEventListener('click', resetTheme);
+}
 
-  primary?.addEventListener('input', updateThemePreview);
-  blur?.addEventListener('input', (event) => {
-    document.getElementById('blur-value').textContent = `${event.target.value}px`;
-    updateThemePreview();
-  });
-  radius?.addEventListener('input', (event) => {
-    document.getElementById('radius-value').textContent = `${event.target.value}px`;
-    updateThemePreview();
-  });
-
-  document.getElementById('btn-save-theme')?.addEventListener('click', async () => {
-    showToast('主题预设暂未持久化，后续可继续接到 theme.json', 'info');
+function renderThemeSettings() {
+  const grid = document.getElementById('theme-settings-grid');
+  if (!grid) return;
+  
+  grid.innerHTML = `
+    <div class="form-group">
+      <label>主色调</label>
+      <input type="color" id="theme-primary" class="glass-input" value="${currentTheme.primary}">
+    </div>
+    <div class="form-group">
+      <label>副色调</label>
+      <input type="color" id="theme-secondary" class="glass-input" value="${currentTheme.secondary}">
+    </div>
+    <div class="form-group">
+      <label>模糊度 (${currentTheme.blur}px)</label>
+      <input type="range" id="theme-blur" min="5" max="50" value="${currentTheme.blur}">
+    </div>
+    <div class="form-group">
+      <label>圆角 (${currentTheme.radius}px)</label>
+      <input type="range" id="theme-radius" min="0" max="32" value="${currentTheme.radius}">
+    </div>
+  `;
+  
+  // Bind events
+  ['primary', 'secondary', 'blur', 'radius'].forEach(key => {
+    const el = document.getElementById(`theme-${key}`);
+    if (el) {
+      el.addEventListener('input', (e) => {
+        currentTheme[key] = e.target.type === 'range' ? parseInt(e.target.value) : e.target.value;
+        applyTheme(currentTheme);
+        if (e.target.type === 'range') {
+          e.target.previousElementSibling.textContent = e.target.previousElementSibling.textContent.replace(/\(\d+.*\)/, `(${currentTheme[key]}px)`);
+        }
+      });
+    }
   });
 }
 
+function applyTheme(theme) {
+  document.documentElement.style.setProperty('--primary', theme.primary);
+  document.documentElement.style.setProperty('--secondary', theme.secondary);
+  document.documentElement.style.setProperty('--blur', `${theme.blur}px`);
+  document.documentElement.style.setProperty('--radius', `${theme.radius}px`);
+}
+
 function updateThemePreview() {
-  const primary = document.getElementById('theme-primary')?.value || '#f472b6';
-  const blur = document.getElementById('theme-blur')?.value || 20;
-  const radius = document.getElementById('theme-radius')?.value || 16;
-  const preview = document.getElementById('theme-preview-box');
-  if (preview) {
-    preview.style.setProperty('--primary', primary);
-    preview.style.setProperty('--blur', `${blur}px`);
-    preview.style.setProperty('--radius', `${radius}px`);
+  applyTheme(currentTheme);
+}
+
+async function saveTheme() {
+  localStorage.setItem('ham-blog-theme', JSON.stringify(currentTheme));
+  
+  // Also save to config for persistence across sessions
+  try {
+    config.theme = currentTheme;
+    await fetchJson('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    showToast('主题设置已保存', 'success');
+  } catch (error) {
+    // localStorage 保存成功即可
+    showToast('主题设置已保存（本地）', 'success');
   }
+}
+
+function resetTheme() {
+  currentTheme = { ...defaultTheme };
+  applyTheme(currentTheme);
+  renderThemeSettings();
+  localStorage.removeItem('ham-blog-theme');
+  showToast('主题已重置为默认', 'info');
 }
 
 async function buildSite() {
@@ -709,4 +849,369 @@ function showToast(message, type = 'info') {
     toast.style.transform = 'translateX(100%)';
     setTimeout(() => toast.remove(), 300);
   }, 3000);
+}
+
+// ========================================
+// About Page Editor
+// ========================================
+function initAbout() {
+  // Tab switching
+  document.querySelectorAll('#view-about .tab-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('#view-about .tab-btn').forEach((item) => item.classList.remove('active'));
+      document.querySelectorAll('#view-about .tab-content').forEach((item) => item.classList.add('hidden'));
+      button.classList.add('active');
+      document.getElementById(`tab-${button.dataset.tab}`)?.classList.remove('hidden');
+      if (button.dataset.tab === 'about-preview') {
+        updateAboutPreview();
+      }
+    });
+  });
+
+  // Save button
+  document.getElementById('btn-save-about')?.addEventListener('click', saveAbout);
+}
+
+// ========================================
+// Images Manager
+// ========================================
+function initImages() {
+  const uploadInput = document.getElementById('image-upload-input');
+  const uploadBtn = document.getElementById('btn-upload-image');
+  const uploadEmptyBtn = document.getElementById('btn-upload-empty');
+
+  uploadBtn?.addEventListener('click', () => uploadInput?.click());
+  uploadEmptyBtn?.addEventListener('click', () => uploadInput?.click());
+
+  uploadInput?.addEventListener('change', async (e) => {
+    const files = e.target.files;
+    if (!files.length) return;
+
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        showToast(`上传成功: ${file.name}`, 'success');
+      } catch (error) {
+        showToast(`上传失败: ${file.name}`, 'error');
+      }
+    }
+
+    await loadImages();
+    uploadInput.value = '';
+  });
+}
+
+async function loadImages() {
+  try {
+    const images = await fetchJson('/api/images');
+    const grid = document.getElementById('images-grid');
+    const emptyState = document.getElementById('images-empty');
+
+    if (!images.length) {
+      grid.innerHTML = '';
+      emptyState.classList.remove('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+    grid.innerHTML = images.map((img) => `
+      <div class="image-card glass">
+        <img src="${img.url}" alt="${img.name}" loading="lazy">
+        <div class="image-overlay">
+          <button class="glass-btn btn-sm" onclick="copyImageUrl('${img.url}')">复制链接</button>
+          <button class="glass-btn btn-sm btn-danger" onclick="deleteImage('${img.name}')">删除</button>
+        </div>
+        <div class="image-name">${img.name}</div>
+      </div>
+    `).join('');
+  } catch (error) {
+    showToast('加载图片失败', 'error');
+  }
+}
+
+function copyImageUrl(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('链接已复制', 'success');
+  });
+}
+
+async function deleteImage(filename) {
+  if (!confirm(`确定要删除 ${filename} 吗？`)) return;
+  
+  try {
+    await fetchJson(`/api/images/${filename}`, { method: 'DELETE' });
+    showToast('图片已删除', 'success');
+    await loadImages();
+  } catch (error) {
+    showToast('删除失败: ' + error.message, 'error');
+  }
+}
+
+// ========================================
+// Tags Manager
+// ========================================
+let tagsData = {};
+
+function initTags() {
+  document.getElementById('btn-add-tag')?.addEventListener('click', addNewTag);
+  document.getElementById('new-tag-input')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addNewTag();
+  });
+}
+
+async function loadTags() {
+  posts = await fetchJson('/api/posts');
+  
+  // 统计标签使用情况
+  tagsData = {};
+  posts.forEach(post => {
+    if (post.tags) {
+      post.tags.forEach(tag => {
+        if (!tagsData[tag]) tagsData[tag] = { count: 0, posts: [] };
+        tagsData[tag].count++;
+        tagsData[tag].posts.push(post);
+      });
+    }
+  });
+
+  const container = document.getElementById('tags-container');
+  const totalTags = Object.keys(tagsData).length;
+  const usedTags = totalTags;
+
+  document.getElementById('total-tags').textContent = totalTags;
+  document.getElementById('used-tags').textContent = usedTags;
+
+  if (totalTags === 0) {
+    container.innerHTML = '<div class="empty">暂无标签，在文章中添加标签后会自动显示在这里</div>';
+    return;
+  }
+
+  // 按使用次数排序
+  const sortedTags = Object.entries(tagsData).sort((a, b) => b[1].count - a[1].count);
+
+  container.innerHTML = `
+    <div class="tags-grid-admin">
+      ${sortedTags.map(([tag, data]) => `
+        <div class="tag-card glass" data-tag="${tag}">
+          <div class="tag-header">
+            <span class="tag-name">${tag}</span>
+            <span class="tag-count">${data.count} 篇文章</span>
+          </div>
+          <div class="tag-posts">
+            ${data.posts.slice(0, 3).map(p => `
+              <div class="tag-post-item" onclick="editPost('${p.path}')">${p.title}</div>
+            `).join('')}
+            ${data.posts.length > 3 ? `<div class="tag-post-more">还有 ${data.posts.length - 3} 篇...</div>` : ''}
+          </div>
+          <div class="tag-actions">
+            <button class="glass-btn btn-sm" onclick="renameTag('${tag}')">重命名</button>
+            <button class="glass-btn btn-sm btn-danger" onclick="deleteTag('${tag}')">删除</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function addNewTag() {
+  const input = document.getElementById('new-tag-input');
+  const tagName = input.value.trim();
+  
+  if (!tagName) {
+    showToast('请输入标签名称', 'error');
+    return;
+  }
+  
+  if (tagsData[tagName]) {
+    showToast('标签已存在', 'error');
+    return;
+  }
+  
+  // 新标签需要在文章中添加，这里只是提示
+  showToast('标签需要在文章中添加，请编辑文章', 'info');
+  input.value = '';
+}
+
+async function renameTag(oldTag) {
+  const newTag = prompt(`将 "${oldTag}" 重命名为：`, oldTag);
+  if (!newTag || newTag === oldTag) return;
+  
+  if (tagsData[newTag]) {
+    showToast('目标标签已存在', 'error');
+    return;
+  }
+
+  // 更新所有包含该标签的文章
+  const postsToUpdate = tagsData[oldTag].posts;
+  for (const post of postsToUpdate) {
+    const newTags = post.tags.map(t => t === oldTag ? newTag : t);
+    // 这里需要更新文章，简化处理
+  }
+  
+  showToast('标签重命名功能需要批量更新文章', 'info');
+  await loadTags();
+}
+
+async function deleteTag(tag) {
+  if (!confirm(`确定删除标签 "${tag}" 吗？这将从所有文章中移除该标签。`)) return;
+  
+  // 从所有文章中移除该标签
+  const postsToUpdate = tagsData[tag].posts;
+  for (const post of postsToUpdate) {
+    const newTags = post.tags.filter(t => t !== tag);
+    // 更新文章
+    const content = await fetchJson(`/api/posts/${post.path}`);
+    const { meta, body } = parseFrontmatter(content.content);
+    meta.tags = newTags;
+    
+    const newContent = `---
+title: ${meta.title}
+date: ${meta.date}
+tags: [${newTags.join(', ')}]
+category: ${meta.category}
+---
+
+${body}`;
+    
+    await fetchJson('/api/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: post.path, content: newContent }),
+    });
+  }
+  
+  showToast('标签已删除', 'success');
+  await loadTags();
+}
+
+// ========================================
+// Navigation Manager
+// ========================================
+let navItems = [];
+
+function initNav() {
+  document.getElementById('btn-add-nav')?.addEventListener('click', addNavItem);
+  document.getElementById('btn-save-nav')?.addEventListener('click', saveNav);
+}
+
+async function loadNav() {
+  config = await fetchJson('/api/config');
+  navItems = config.nav || [];
+  renderNavList();
+}
+
+function renderNavList() {
+  const container = document.getElementById('nav-items-list');
+  
+  if (navItems.length === 0) {
+    container.innerHTML = '<div class="empty">暂无导航项</div>';
+    return;
+  }
+
+  container.innerHTML = navItems.map((item, index) => `
+    <div class="nav-item-row glass" data-index="${index}">
+      <span class="nav-drag-handle">⋮⋮</span>
+      <div class="nav-item-fields">
+        <input type="text" class="glass-input nav-text" value="${item.text}" placeholder="显示文本" data-index="${index}">
+        <input type="text" class="glass-input nav-url" value="${item.url}" placeholder="链接地址" data-index="${index}">
+        <input type="text" class="glass-input nav-icon" value="${item.icon || ''}" placeholder="图标" data-index="${index}">
+      </div>
+      <button class="glass-btn btn-sm btn-danger" onclick="removeNavItem(${index})">删除</button>
+    </div>
+  `).join('');
+
+  // 绑定输入事件
+  container.querySelectorAll('.nav-text, .nav-url, .nav-icon').forEach(input => {
+    input.addEventListener('change', updateNavItem);
+  });
+}
+
+function updateNavItem(e) {
+  const index = parseInt(e.target.dataset.index);
+  const row = document.querySelector(`.nav-item-row[data-index="${index}"]`);
+  
+  navItems[index] = {
+    text: row.querySelector('.nav-text').value,
+    url: row.querySelector('.nav-url').value,
+    icon: row.querySelector('.nav-icon').value,
+  };
+}
+
+function addNavItem() {
+  navItems.push({ text: '新菜单', url: '/', icon: '📄' });
+  renderNavList();
+}
+
+function removeNavItem(index) {
+  navItems.splice(index, 1);
+  renderNavList();
+}
+
+async function saveNav() {
+  // 更新配置
+  config.nav = navItems;
+  
+  await fetchJson('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  
+  showToast('导航菜单已保存', 'success');
+}
+
+async function loadAbout() {
+  try {
+    const data = await fetchJson('/api/about');
+    document.getElementById('about-content').value = data.content || '';
+  } catch (error) {
+    console.log('No about page found, using default');
+    document.getElementById('about-content').value = '';
+  }
+}
+
+function updateAboutPreview() {
+  const content = document.getElementById('about-content').value;
+  const html = content
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\n/g, '<br>');
+  document.getElementById('about-preview-content').innerHTML = html;
+}
+
+async function saveAbout() {
+  const content = document.getElementById('about-content').value.trim();
+
+  if (!content) {
+    showToast('请填写内容', 'error');
+    return;
+  }
+
+  const frontmatter = `---
+title: 关于
+---
+
+${content}`;
+
+  try {
+    await fetchJson('/api/about', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: frontmatter }),
+    });
+    showToast('关于页面已保存', 'success');
+  } catch (error) {
+    showToast('保存失败: ' + error.message, 'error');
+  }
 }

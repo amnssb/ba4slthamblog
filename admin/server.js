@@ -338,6 +338,67 @@ app.get('/api/images', (req, res) => {
   res.json(images);
 });
 
+// Delete image
+app.delete('/api/images/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    // Prevent path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+    
+    const imagePath = join(PUBLIC, 'images', filename);
+    if (!existsSync(imagePath)) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+    
+    unlinkSync(imagePath);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get about page
+app.get('/api/about', (req, res) => {
+  const aboutPath = join(CONTENT, 'pages', 'about.md');
+  if (!existsSync(aboutPath)) {
+    return res.status(404).json({ error: 'About page not found' });
+  }
+  const content = readFileSync(aboutPath, 'utf-8');
+  // Parse frontmatter to get body
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  const body = match ? match[2] : content;
+  res.json({ content: body.trim() });
+});
+
+// Save about page
+app.post('/api/about', (req, res) => {
+  try {
+    const { content } = req.body;
+    if (typeof content !== 'string') {
+      return res.status(400).json({ error: 'Invalid content' });
+    }
+
+    const pagesDir = join(CONTENT, 'pages');
+    console.log('Creating pages directory:', pagesDir);
+    
+    if (!existsSync(pagesDir)) {
+      mkdirSync(pagesDir, { recursive: true });
+      console.log('Pages directory created');
+    }
+
+    const aboutPath = join(pagesDir, 'about.md');
+    console.log('Writing to:', aboutPath);
+    writeFileSync(aboutPath, content, 'utf-8');
+    console.log('About page saved successfully');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving about page:', error);
+    res.status(500).json({ error: error.message || 'Failed to save about page' });
+  }
+});
+
 // Build
 app.post('/api/build', (req, res) => {
   const execAsync = promisify(exec);
