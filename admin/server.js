@@ -120,6 +120,36 @@ app.get('/api/posts', (req, res) => {
   const posts = [];
   const postsDir = join(CONTENT, 'posts');
   
+  function parseFrontmatter(content) {
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return {};
+    
+    const meta = {};
+    const fmContent = fmMatch[1];
+    
+    // Parse key: value pairs, handling URLs properly
+    const lines = fmContent.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Match key: value format, where value can contain colons (like URLs)
+      const match = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.+)$/);
+      if (match) {
+        const key = match[1].trim();
+        let val = match[2].trim();
+        
+        // Handle arrays [item1, item2]
+        if (val.startsWith('[') && val.endsWith(']')) {
+          val = val.slice(1, -1).split(',').map(v => v.trim().replace(/['"]/g, '')).filter(Boolean);
+        } else {
+          // Remove quotes if present
+          val = val.replace(/^['"]|['"]$/g, '');
+        }
+        meta[key] = val;
+      }
+    }
+    return meta;
+  }
+  
   function scanDir(dir, category = '') {
     if (!existsSync(dir)) return;
     const entries = readdirSync(dir, { withFileTypes: true });
@@ -129,24 +159,8 @@ app.get('/api/posts', (req, res) => {
         scanDir(path, entry.name);
       } else if (entry.name.endsWith('.md')) {
         const content = readFileSync(path, 'utf-8');
-        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-        const meta = {};
-        if (fmMatch) {
-          const lines = fmMatch[1].split('\n');
-          lines.forEach(line => {
-            const colon = line.indexOf(':');
-            if (colon > 0) {
-              const key = line.slice(0, colon).trim();
-              let val = line.slice(colon + 1).trim();
-              if (val.startsWith('[') && val.endsWith(']')) {
-                val = val.slice(1, -1).split(',').map(v => v.trim().replace(/['"]/g, ''));
-              } else {
-                val = val.replace(/['"]/g, '');
-              }
-              meta[key] = val;
-            }
-          });
-        }
+        const meta = parseFrontmatter(content);
+        
         posts.push({
           ...meta,
           category: meta.category || category || 'default',
