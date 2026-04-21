@@ -786,6 +786,63 @@ function initSettings() {
       showToast('清除失败: ' + error.message, 'error');
     }
   });
+  
+  // Giscus management
+  const giscusRepo = document.getElementById('giscus-repo');
+  const giscusRepoId = document.getElementById('giscus-repo-id');
+  const giscusCategory = document.getElementById('giscus-category');
+  const giscusCategoryId = document.getElementById('giscus-category-id');
+  const saveGiscusBtn = document.getElementById('btn-save-giscus');
+  const clearGiscusBtn = document.getElementById('btn-clear-giscus');
+  
+  // Load current Giscus config
+  if (config.giscus) {
+    if (giscusRepo) giscusRepo.value = config.giscus.repo || '';
+    if (giscusRepoId) giscusRepoId.value = config.giscus.repoId || '';
+    if (giscusCategory) giscusCategory.value = config.giscus.category || '';
+    if (giscusCategoryId) giscusCategoryId.value = config.giscus.categoryId || '';
+  }
+  
+  saveGiscusBtn?.addEventListener('click', async () => {
+    config.giscus = {
+      repo: giscusRepo?.value?.trim() || '',
+      repoId: giscusRepoId?.value?.trim() || '',
+      category: giscusCategory?.value?.trim() || '',
+      categoryId: giscusCategoryId?.value?.trim() || '',
+    };
+    
+    try {
+      await fetchJson('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      showToast('Giscus 配置已保存', 'success');
+    } catch (error) {
+      showToast('保存失败: ' + error.message, 'error');
+    }
+  });
+  
+  clearGiscusBtn?.addEventListener('click', async () => {
+    if (!confirm('确定要清除 Giscus 配置吗？')) return;
+    
+    config.giscus = null;
+    if (giscusRepo) giscusRepo.value = '';
+    if (giscusRepoId) giscusRepoId.value = '';
+    if (giscusCategory) giscusCategory.value = '';
+    if (giscusCategoryId) giscusCategoryId.value = '';
+    
+    try {
+      await fetchJson('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      showToast('Giscus 配置已清除', 'success');
+    } catch (error) {
+      showToast('清除失败: ' + error.message, 'error');
+    }
+  });
 }
 
 const defaultTheme = {

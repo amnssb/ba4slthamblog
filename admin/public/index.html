@@ -592,6 +592,40 @@
             <button class="glass-btn btn-danger" id="btn-clear-favicon">清除</button>
           </div>
         </div>
+
+        <!-- Giscus Comments -->
+        <div class="giscus-section glass" id="giscus-section">
+          <h3>💬 Giscus 评论</h3>
+          <div class="giscus-info">
+            <p>基于 GitHub Discussions 的评论系统</p>
+            <p>配置步骤：</p>
+            <ol>
+              <li>确保仓库已启用 Discussions</li>
+              <li>访问 <a href="https://giscus.app" target="_blank">giscus.app</a> 生成配置</li>
+              <li>将生成的 data-repo, data-repo-id 等填入下方</li>
+            </ol>
+          </div>
+          <div class="form-group">
+            <label>仓库 (data-repo)</label>
+            <input type="text" id="giscus-repo" class="glass-input" placeholder="username/repo">
+          </div>
+          <div class="form-group">
+            <label>仓库 ID (data-repo-id)</label>
+            <input type="text" id="giscus-repo-id" class="glass-input" placeholder="R_xxxxxxxx">
+          </div>
+          <div class="form-group">
+            <label>分类 (data-category)</label>
+            <input type="text" id="giscus-category" class="glass-input" placeholder="General">
+          </div>
+          <div class="form-group">
+            <label>分类 ID (data-category-id)</label>
+            <input type="text" id="giscus-category-id" class="glass-input" placeholder="DIC_xxxxxxxx">
+          </div>
+          <div class="giscus-actions">
+            <button class="btn-primary glass-btn" id="btn-save-giscus">保存 Giscus 配置</button>
+            <button class="glass-btn" id="btn-clear-giscus">清除配置</button>
+          </div>
+        </div>
       </section>
     </main>
 

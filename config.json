@@ -57,5 +57,11 @@
     "type": "particle",
     "value": "sakura"
   },
-  "favicon": "https://img.11451478.xyz/1776768680285.jpeg"
+  "favicon": "https://img.11451478.xyz/1776768680285.jpeg",
+  "giscus": {
+    "repo": "amnssb/ham-radio-blog-comments",
+    "repoId": "R_kgDOSIrJhA",
+    "category": "Announcements",
+    "categoryId": "DIC_kwDOSIrJhM4C7Wxn"
+  }
 }

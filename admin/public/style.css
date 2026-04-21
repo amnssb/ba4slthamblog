@@ -1613,3 +1613,52 @@ body {
   display: flex;
   gap: 12px;
 }
+
+/* Giscus Comments */
+.giscus-section {
+  margin-top: 24px;
+  padding: 24px;
+}
+
+.giscus-section h3 {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.giscus-info {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.giscus-info p {
+  margin: 4px 0;
+}
+
+.giscus-info ol {
+  margin: 8px 0 8px 20px;
+}
+
+.giscus-info li {
+  margin: 4px 0;
+}
+
+.giscus-info a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.giscus-info a:hover {
+  text-decoration: underline;
+}
+
+.giscus-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
