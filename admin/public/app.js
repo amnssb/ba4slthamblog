@@ -697,6 +697,33 @@ async function loadSettings() {
   document.getElementById('site-email').value = config.email || '';
   document.getElementById('site-url').value = config.url || '';
   document.getElementById('site-perpage').value = config.postsPerPage || 10;
+  
+  // Check favicon
+  updateFaviconPreview();
+}
+
+function updateFaviconPreview() {
+  const img = document.getElementById('current-favicon');
+  const placeholder = document.getElementById('favicon-placeholder');
+  const urlInput = document.getElementById('favicon-url');
+  
+  const faviconUrl = config.favicon || '';
+  if (urlInput) urlInput.value = faviconUrl;
+  
+  if (faviconUrl) {
+    img.src = faviconUrl;
+    img.onload = () => {
+      img.style.display = 'block';
+      placeholder.style.display = 'none';
+    };
+    img.onerror = () => {
+      img.style.display = 'none';
+      placeholder.style.display = 'block';
+    };
+  } else {
+    img.style.display = 'none';
+    placeholder.style.display = 'block';
+  }
 }
 
 function initSettings() {
@@ -717,6 +744,47 @@ function initSettings() {
     });
 
     showToast('配置已保存', 'success');
+  });
+  
+  // Favicon management
+  const urlInput = document.getElementById('favicon-url');
+  const saveBtn = document.getElementById('btn-save-favicon');
+  const clearBtn = document.getElementById('btn-clear-favicon');
+  
+  saveBtn?.addEventListener('click', async () => {
+    const url = urlInput?.value?.trim() || '';
+    config.favicon = url;
+    
+    try {
+      await fetchJson('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      showToast('图标链接已保存', 'success');
+      updateFaviconPreview();
+    } catch (error) {
+      showToast('保存失败: ' + error.message, 'error');
+    }
+  });
+  
+  clearBtn?.addEventListener('click', async () => {
+    if (!confirm('确定要清除网站图标吗？')) return;
+    
+    config.favicon = '';
+    if (urlInput) urlInput.value = '';
+    
+    try {
+      await fetchJson('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      showToast('图标已清除', 'success');
+      updateFaviconPreview();
+    } catch (error) {
+      showToast('清除失败: ' + error.message, 'error');
+    }
   });
 }
 

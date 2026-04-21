@@ -114,7 +114,7 @@ export function renderLayout(config, {
   <meta name="twitter:description" content="${escapeHtml(pageDescription)}">
   <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
   <link rel="canonical" href="${escapeHtml(pageUrl)}">
-  <link rel="icon" href="${withBasePath('/favicon.svg', basePath)}" type="image/svg+xml">
+  ${config.favicon ? `<link rel="icon" href="${escapeHtml(config.favicon)}" type="image/x-icon">` : `<link rel="icon" href="${withBasePath('/favicon.svg', basePath)}" type="image/svg+xml">`}
   <link rel="alternate" type="application/rss+xml" href="${withBasePath('/rss.xml', basePath)}">
   <link rel="stylesheet" href="${withBasePath('/style.css', basePath)}">
   <link rel="preconnect" href="https://fonts.googleapis.com">

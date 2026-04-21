@@ -373,6 +373,57 @@ app.delete('/api/images/:filename', (req, res) => {
   }
 });
 
+// Favicon upload
+const faviconStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, PUBLIC);
+  },
+  filename: (req, file, cb) => {
+    // Always save as favicon.ico for compatibility
+    const ext = file.originalname.split('.').pop().toLowerCase();
+    if (['ico', 'png', 'jpg', 'jpeg', 'svg'].includes(ext)) {
+      cb(null, 'favicon.ico');
+    } else {
+      cb(new Error('Invalid favicon format'), null);
+    }
+  },
+});
+
+const faviconUpload = multer({ 
+  storage: faviconStorage,
+  limits: { fileSize: 1024 * 1024 }, // 1MB limit
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/jpeg', 'image/svg+xml'];
+    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(ico|png|jpg|jpeg|svg)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .ico, .png, .jpg, .svg files are allowed'));
+    }
+  }
+});
+
+app.post('/api/favicon', faviconUpload.single('favicon'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  res.json({ 
+    success: true, 
+    url: '/favicon.ico'
+  });
+});
+
+app.delete('/api/favicon', (req, res) => {
+  try {
+    const faviconPath = join(PUBLIC, 'favicon.ico');
+    if (existsSync(faviconPath)) {
+      unlinkSync(faviconPath);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get about page
 app.get('/api/about', (req, res) => {
   const aboutPath = join(CONTENT, 'pages', 'about.md');

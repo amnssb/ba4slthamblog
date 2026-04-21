@@ -570,6 +570,28 @@
           </div>
           <button class="btn-primary glass-btn" id="btn-save-config">保存配置</button>
         </div>
+        
+        <!-- Favicon Management -->
+        <div class="favicon-section glass" id="favicon-section">
+          <h3>🌐 网站图标 (Favicon)</h3>
+          <div class="favicon-preview" id="favicon-preview">
+            <img src="" alt="当前图标" id="current-favicon" onerror="this.style.display='none'">
+            <span class="favicon-placeholder" id="favicon-placeholder">🌐</span>
+          </div>
+          <div class="favicon-info">
+            <p>支持格式: .ico, .png, .jpg, .svg</p>
+            <p>推荐尺寸: 32x32 或 64x64 像素</p>
+            <p>使用图床链接，如 https://your-cdn.com/favicon.ico</p>
+          </div>
+          <div class="form-group">
+            <label>图标链接</label>
+            <input type="url" id="favicon-url" class="glass-input" placeholder="https://your-cdn.com/favicon.ico">
+          </div>
+          <div class="favicon-actions">
+            <button class="btn-primary glass-btn" id="btn-save-favicon">保存图标</button>
+            <button class="glass-btn btn-danger" id="btn-clear-favicon">清除</button>
+          </div>
+        </div>
       </section>
     </main>
 

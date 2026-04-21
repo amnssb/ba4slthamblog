@@ -1563,3 +1563,53 @@ body {
 #new-tag-input {
   width: 200px;
 }
+
+/* Favicon Management */
+.favicon-section {
+  margin-top: 24px;
+  padding: 24px;
+}
+
+.favicon-section h3 {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.favicon-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.favicon-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.favicon-placeholder {
+  font-size: 40px;
+}
+
+.favicon-info {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.favicon-info p {
+  margin: 4px 0;
+}
+
+.favicon-actions {
+  display: flex;
+  gap: 12px;
+}
