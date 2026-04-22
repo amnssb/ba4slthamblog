@@ -264,6 +264,15 @@
               <label>封面图</label>
               <input type="url" id="post-cover-url" class="glass-input" placeholder="https://your-image-host/cover.jpg">
             </div>
+            <div class="form-group">
+              <label>文章摘要</label>
+              <div class="summary-input-group">
+                <textarea id="post-summary" class="glass-textarea" rows="3" placeholder="文章摘要，留空自动生成..."></textarea>
+                <button type="button" class="glass-btn" id="btn-generate-summary" title="使用 AI 生成摘要">
+                  <span>✨</span> 生成摘要
+                </button>
+              </div>
+            </div>
           </div>
           <div class="editor-body">
             <div class="editor-tabs">
@@ -624,6 +633,40 @@
           <div class="giscus-actions">
             <button class="btn-primary glass-btn" id="btn-save-giscus">保存 Giscus 配置</button>
             <button class="glass-btn" id="btn-clear-giscus">清除配置</button>
+          </div>
+        </div>
+
+        <!-- AI Summary Config -->
+        <div class="ai-section glass" id="ai-section">
+          <h3>🤖 AI 文章总结</h3>
+          <div class="ai-info">
+            <p>使用 AI 自动生成文章摘要</p>
+            <p>支持 DeepSeek、OpenAI、Kimi 等</p>
+          </div>
+          <div class="form-group">
+            <label>AI 提供商</label>
+            <select id="ai-provider" class="glass-input">
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+              <option value="kimi">Kimi (Moonshot)</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="ai-api-key" class="glass-input" placeholder="sk-xxxxxxxx">
+          </div>
+          <div class="form-group">
+            <label>模型名称</label>
+            <input type="text" id="ai-model" class="glass-input" placeholder="deepseek-chat">
+          </div>
+          <div class="form-group" id="ai-custom-url-group" style="display:none;">
+            <label>自定义 API 地址</label>
+            <input type="url" id="ai-custom-url" class="glass-input" placeholder="https://api.example.com/v1/chat/completions">
+          </div>
+          <div class="ai-actions">
+            <button class="btn-primary glass-btn" id="btn-save-ai">保存 AI 配置</button>
+            <button class="glass-btn" id="btn-test-ai">测试连接</button>
           </div>
         </div>
       </section>

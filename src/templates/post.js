@@ -32,6 +32,7 @@ export function renderPost(config, post, prevPost, nextPost, theme = 'anime-saku
           <span class="post-category">${post.category}</span>
           <span class="post-tags-inline">${tagsHtml}</span>
         </div>
+        ${renderSummary(post.summary)}
       </header>
       
       <div class="post-content">
@@ -57,6 +58,37 @@ ${post.html}
     image: post.cover || '/favicon.svg',
     type: 'article',
   });
+}
+
+function escapeHtml(text) {
+  const div = { __html: '' };
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function renderSummary(summary) {
+  if (!summary) return '';
+
+  return `
+        <div class="post-summary-box">
+          <details class="summary-details">
+            <summary class="summary-toggle">
+              <span class="summary-icon">📋</span>
+              <span class="summary-text">文章摘要</span>
+              <span class="summary-arrow">▶</span>
+            </summary>
+            <div class="summary-content">
+              <p>${escapeHtml(summary)}</p>
+            </div>
+          </details>
+        </div>
+  `;
 }
 
 function renderGiscus(config) {

@@ -31,7 +31,7 @@ export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 
             <time>${formatDate(post.date)}</time>
             <span>${post.category}</span>
           </div>
-          <p class="post-card-excerpt">${truncate(post.excerpt || '', 150)}</p>
+          <p class="post-card-excerpt">${truncate(post.summary || post.excerpt || '', 150)}</p>
           <div class="post-card-tags">
             ${tagsHtml}
           </div>

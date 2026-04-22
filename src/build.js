@@ -23,7 +23,10 @@ const ASSETS = join(ROOT, 'src', 'assets');
 const DATA = join(ROOT, 'data');
 
 function readConfig() {
-  return JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf-8'));
+  const config = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf-8'));
+  // Remove sensitive data before passing to templates
+  const { ai, ...safeConfig } = config;
+  return safeConfig;
 }
 
 function toPosixPath(filePath) {
@@ -118,6 +121,7 @@ function build() {
         url,
         html,
         excerpt,
+        summary: meta.summary || null,
         path: filePath,
         cover: meta.cover || null,
       };

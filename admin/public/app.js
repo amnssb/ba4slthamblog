@@ -57,7 +57,14 @@ async function fetchJson(url, options) {
   return data;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load config first
+  try {
+    config = await fetchJson('/api/config');
+  } catch (error) {
+    console.error('Failed to load config:', error);
+  }
+  
   initNavigation();
   initWebSocket();
   initPostEditor();
@@ -179,6 +186,7 @@ function editPost(path) {
   document.getElementById('post-date').value = post?.date || new Date().toISOString().split('T')[0];
   document.getElementById('post-category').value = post?.category || 'daily';
   document.getElementById('post-tags').value = post?.tags?.join(', ') || '';
+  document.getElementById('post-summary').value = post?.summary || '';
 
   fetchJson(`/api/posts/${path}`).then((data) => {
     const { meta, body } = parseFrontmatter(data.content);
@@ -198,6 +206,7 @@ function initPostEditor() {
     document.getElementById('post-category').value = 'daily';
     document.getElementById('post-tags').value = '';
     document.getElementById('post-cover-url').value = '';
+    document.getElementById('post-summary').value = '';
     document.getElementById('post-content').value = '';
     switchView('editor');
   });
@@ -207,6 +216,7 @@ function initPostEditor() {
   document.getElementById('btn-draft')?.addEventListener('click', savePost);
   document.getElementById('btn-build')?.addEventListener('click', buildSite);
   document.getElementById('btn-preview')?.addEventListener('click', () => window.open('/preview/', '_blank'));
+  document.getElementById('btn-generate-summary')?.addEventListener('click', generateSummary);
 
   document.querySelectorAll('#view-editor .tab-btn').forEach((button) => {
     button.addEventListener('click', () => {
@@ -272,6 +282,7 @@ function renderPostsList() {
       </div>
       <div class="post-card-actions">
         <button class="glass-btn btn-sm" onclick="event.stopPropagation(); editPost('${post.path}')">编辑</button>
+        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); exportPost('${post.path}')">📤 导出</button>
         <button class="glass-btn btn-sm btn-danger" onclick="event.stopPropagation(); deletePost('${post.path}')">删除</button>
       </div>
     </div>
@@ -313,6 +324,7 @@ async function savePost() {
   const category = document.getElementById('post-category').value;
   const tags = document.getElementById('post-tags').value.split(',').map((tag) => tag.trim()).filter(Boolean);
   const cover = document.getElementById('post-cover-url').value.trim();
+  const summary = document.getElementById('post-summary').value.trim();
   const content = document.getElementById('post-content').value.trim();
 
   if (!title || !content) {
@@ -327,6 +339,7 @@ async function savePost() {
     `tags: [${tags.join(', ')}]`,
     `category: ${category}`,
     ...(cover ? [`cover: ${cover}`] : []),
+    ...(summary ? [`summary: ${summary}`] : []),
     '---',
     '',
     content,
@@ -348,11 +361,82 @@ async function savePost() {
   switchView('posts');
 }
 
+// Generate AI summary
+async function generateSummary() {
+  const content = document.getElementById('post-content').value.trim();
+  const summaryInput = document.getElementById('post-summary');
+  
+  if (!content) {
+    showToast('请先填写文章内容', 'error');
+    return;
+  }
+  
+  if (!config.ai || !config.ai.apiKey) {
+    showToast('请先在站点设置中配置 AI', 'error');
+    return;
+  }
+  
+  const btn = document.getElementById('btn-generate-summary');
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span>⏳</span> 生成中...';
+  btn.disabled = true;
+  
+  try {
+    const response = await fetchJson('/api/ai/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        content: content.slice(0, 5000), // Limit content length
+        provider: config.ai.provider,
+        apiKey: config.ai.apiKey,
+        model: config.ai.model,
+        customUrl: config.ai.customUrl,
+      }),
+    });
+    
+    if (response.summary) {
+      summaryInput.value = response.summary;
+      showToast('摘要生成成功！', 'success');
+    } else {
+      showToast('生成失败: ' + response.error, 'error');
+    }
+  } catch (error) {
+    showToast('生成失败: ' + error.message, 'error');
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
 async function deletePost(path) {
   if (!confirm('确定要删除这篇文章吗？')) return;
   await fetchJson(`/api/posts/${path}`, { method: 'DELETE' });
   showToast('删除成功', 'success');
   await loadPosts();
+}
+
+// Export post for cross-site sync
+async function exportPost(path) {
+  try {
+    const response = await fetchJson(`/api/posts/${encodeURIComponent(path)}/export`);
+    
+    // Create downloadable JSON file
+    const dataStr = JSON.stringify(response, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `export-${response.slug || 'post'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('文章已导出', 'success');
+  } catch (error) {
+    showToast('导出失败: ' + error.message, 'error');
+  }
 }
 
 async function loadLogs() {
@@ -700,6 +784,34 @@ async function loadSettings() {
   
   // Check favicon
   updateFaviconPreview();
+  
+  // Load Giscus config
+  const giscusRepo = document.getElementById('giscus-repo');
+  const giscusRepoId = document.getElementById('giscus-repo-id');
+  const giscusCategory = document.getElementById('giscus-category');
+  const giscusCategoryId = document.getElementById('giscus-category-id');
+  
+  if (config.giscus) {
+    if (giscusRepo) giscusRepo.value = config.giscus.repo || '';
+    if (giscusRepoId) giscusRepoId.value = config.giscus.repoId || '';
+    if (giscusCategory) giscusCategory.value = config.giscus.category || '';
+    if (giscusCategoryId) giscusCategoryId.value = config.giscus.categoryId || '';
+  }
+  
+  // Load AI config
+  const aiProvider = document.getElementById('ai-provider');
+  const aiApiKey = document.getElementById('ai-api-key');
+  const aiModel = document.getElementById('ai-model');
+  const aiCustomUrl = document.getElementById('ai-custom-url');
+  const aiCustomUrlGroup = document.getElementById('ai-custom-url-group');
+  
+  if (config.ai) {
+    if (aiProvider) aiProvider.value = config.ai.provider || 'deepseek';
+    if (aiApiKey) aiApiKey.value = config.ai.apiKey || '';
+    if (aiModel) aiModel.value = config.ai.model || '';
+    if (aiCustomUrl) aiCustomUrl.value = config.ai.customUrl || '';
+    if (aiCustomUrlGroup) aiCustomUrlGroup.style.display = config.ai?.provider === 'custom' ? 'block' : 'none';
+  }
 }
 
 function updateFaviconPreview() {
@@ -795,14 +907,6 @@ function initSettings() {
   const saveGiscusBtn = document.getElementById('btn-save-giscus');
   const clearGiscusBtn = document.getElementById('btn-clear-giscus');
   
-  // Load current Giscus config
-  if (config.giscus) {
-    if (giscusRepo) giscusRepo.value = config.giscus.repo || '';
-    if (giscusRepoId) giscusRepoId.value = config.giscus.repoId || '';
-    if (giscusCategory) giscusCategory.value = config.giscus.category || '';
-    if (giscusCategoryId) giscusCategoryId.value = config.giscus.categoryId || '';
-  }
-  
   saveGiscusBtn?.addEventListener('click', async () => {
     config.giscus = {
       repo: giscusRepo?.value?.trim() || '',
@@ -841,6 +945,71 @@ function initSettings() {
       showToast('Giscus 配置已清除', 'success');
     } catch (error) {
       showToast('清除失败: ' + error.message, 'error');
+    }
+  });
+  
+  // AI Summary management
+  const aiProvider = document.getElementById('ai-provider');
+  const aiApiKey = document.getElementById('ai-api-key');
+  const aiModel = document.getElementById('ai-model');
+  const aiCustomUrl = document.getElementById('ai-custom-url');
+  const aiCustomUrlGroup = document.getElementById('ai-custom-url-group');
+  const saveAiBtn = document.getElementById('btn-save-ai');
+  const testAiBtn = document.getElementById('btn-test-ai');
+
+  aiProvider?.addEventListener('change', () => {
+    if (aiCustomUrlGroup) {
+      aiCustomUrlGroup.style.display = aiProvider.value === 'custom' ? 'block' : 'none';
+    }
+  });
+  
+  saveAiBtn?.addEventListener('click', async () => {
+    config.ai = {
+      provider: aiProvider?.value || 'deepseek',
+      apiKey: aiApiKey?.value?.trim() || '',
+      model: aiModel?.value?.trim() || '',
+      customUrl: aiCustomUrl?.value?.trim() || '',
+    };
+    
+    try {
+      await fetchJson('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      showToast('AI 配置已保存', 'success');
+    } catch (error) {
+      showToast('保存失败: ' + error.message, 'error');
+    }
+  });
+  
+  testAiBtn?.addEventListener('click', async () => {
+    const provider = aiProvider?.value || 'deepseek';
+    const apiKey = aiApiKey?.value?.trim();
+    const model = aiModel?.value?.trim();
+    const customUrl = aiCustomUrl?.value?.trim();
+    
+    if (!apiKey) {
+      showToast('请先填写 API Key', 'error');
+      return;
+    }
+    
+    showToast('正在测试连接...', 'info');
+    
+    try {
+      const response = await fetchJson('/api/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, apiKey, model, customUrl }),
+      });
+      
+      if (response.success) {
+        showToast('连接成功！', 'success');
+      } else {
+        showToast('连接失败: ' + response.error, 'error');
+      }
+    } catch (error) {
+      showToast('测试失败: ' + error.message, 'error');
     }
   });
 }

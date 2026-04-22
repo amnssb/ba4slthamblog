@@ -4,6 +4,7 @@ date: 2026-04-18
 tags: [daily, blog]
 category: other
 cover: https://img.11451478.xyz/1770474552956.jpg
+summary: 作者宣布其业余无线电技术博客正式上线。该博客采用纯Node.js构建，部署于Cloudflare Pages，强调加载速度和易维护性。未来内容将涵盖通联日志、设备评测、天线DIY教程及考试心得等，旨在与无线电爱好者分享交流。
 ---
 
 ## Hello World
