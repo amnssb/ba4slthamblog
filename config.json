@@ -63,5 +63,11 @@
     "repoId": "R_kgDOSIrJhA",
     "category": "Announcements",
     "categoryId": "DIC_kwDOSIrJhM4C7Wxn"
+  },
+  "ai": {
+    "provider": "custom",
+    "apiKey": "sk-pqfotgybixjlxthbfezuutpksqofjpowsaapllmhbpwwifur",
+    "model": "deepseek-ai/DeepSeek-V3.2",
+    "customUrl": "https://api.siliconflow.cn/v1/chat/completions"
   }
 }
