@@ -14,9 +14,9 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { fileURLToPath } from 'url';
-import { dirname, join, relative, resolve } from 'path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'path';
 import chokidar from 'chokidar';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import multer from 'multer';
@@ -38,6 +38,11 @@ const PATHS = {
 };
 
 const PORT = process.env.PORT || 3456;
+const HOST = process.env.HOST || '127.0.0.1';
+const MAX_JSON_SIZE = '1mb';
+const MAX_MARKDOWN_SIZE = 1024 * 1024;
+const MAX_LOG_SIZE = 128 * 1024;
+const MAX_FRIENDS = 300;
 
 // ==========================================
 // EXPRESS & WEBSOCKET - Express 和 WebSocket
@@ -47,10 +52,35 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.json());
-app.use(express.static(join(__dirname, 'public')));
-app.use('/images', express.static(PATHS.PUBLIC_IMAGES));
-app.use('/preview', express.static(PATHS.DIST));
+app.disable('x-powered-by');
+app.use(express.json({ limit: MAX_JSON_SIZE }));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cache-Control', req.path.startsWith('/api/') ? 'no-store' : 'no-cache');
+  next();
+});
+app.use((req, res, next) => {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  const origin = req.get('origin');
+  if (!origin) return next();
+
+  try {
+    const originUrl = new URL(origin);
+    const requestHost = req.get('host');
+    if (originUrl.host === requestHost && ['http:', 'https:'].includes(originUrl.protocol)) {
+      return next();
+    }
+  } catch {}
+
+  return res.status(403).json({ error: 'Invalid request origin' });
+});
+app.use(express.static(join(__dirname, 'public'), { index: 'index.html', extensions: ['html'] }));
+app.use('/images', (req, res, next) => {
+  if (!/\.(jpg|jpeg|png|gif|webp)$/i.test(req.path)) return res.status(404).end();
+  next();
+}, express.static(PATHS.PUBLIC_IMAGES, { fallthrough: false, index: false }));
+app.use('/preview', express.static(PATHS.DIST, { index: 'index.html' }));
 
 // ==========================================
 // FILE UPLOADS - 文件上传
@@ -63,11 +93,15 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
+    const uniqueName = `${Date.now()}-${sanitizeUploadName(file.originalname)}`;
     cb(null, uniqueName);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: imageFileFilter,
+});
 
 const faviconStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -88,11 +122,11 @@ const faviconUpload = multer({
   storage: faviconStorage,
   limits: { fileSize: 1024 * 1024 }, // 1MB limit
   fileFilter: (req, file, cb) => {
-    const allowed = ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/jpeg', 'image/svg+xml'];
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(ico|png|jpg|jpeg|svg)$/i)) {
+    const allowed = ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/jpeg'];
+    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(ico|png|jpg|jpeg)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('Only .ico, .png, .jpg, .svg files are allowed'));
+      cb(new Error('Only .ico, .png, .jpg files are allowed'));
     }
   }
 });
@@ -126,8 +160,9 @@ function toPosixPath(filePath) {
 function resolveContentPath(targetPath = '') {
   const fullPath = resolve(PATHS.CONTENT, targetPath);
   const contentRoot = resolve(PATHS.CONTENT);
+  const rel = relative(contentRoot, fullPath);
 
-  if (!fullPath.startsWith(contentRoot)) {
+  if (rel.startsWith('..') || isAbsolute(rel)) {
     throw new Error('Invalid content path');
   }
 
@@ -137,12 +172,73 @@ function resolveContentPath(targetPath = '') {
 function resolveLogsPath(targetPath = '') {
   const fullPath = resolve(PATHS.LOGS, targetPath);
   const logsRoot = resolve(PATHS.LOGS);
+  const rel = relative(logsRoot, fullPath);
 
-  if (!fullPath.startsWith(logsRoot)) {
+  if (rel.startsWith('..') || isAbsolute(rel)) {
     throw new Error('Invalid log path');
   }
 
   return fullPath;
+}
+
+function sanitizeUploadName(name) {
+  const parsedExt = extname(name).toLowerCase();
+  const safeBase = basename(name, parsedExt)
+    .normalize('NFKD')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'image';
+  return `${safeBase}${parsedExt}`;
+}
+
+function imageFileFilter(req, file, cb) {
+  const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+  const allowedMime = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  const ext = extname(file.originalname).toLowerCase();
+
+  if (allowedExt.has(ext) && allowedMime.has(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only jpg, png, gif and webp images are allowed'));
+  }
+}
+
+function assertExtension(filePath, allowed) {
+  if (!allowed.includes(extname(filePath).toLowerCase())) {
+    throw new Error('Invalid file type');
+  }
+}
+
+function readConfigFile() {
+  return JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf-8'));
+}
+
+function writeConfigFile(config) {
+  writeFileSync(join(ROOT, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
+}
+
+function redactConfig(config) {
+  const safeConfig = JSON.parse(JSON.stringify(config));
+  if (safeConfig.ai) {
+    safeConfig.ai = {
+      ...safeConfig.ai,
+      apiKey: '',
+      hasApiKey: Boolean(config.ai.apiKey),
+    };
+  }
+  return safeConfig;
+}
+
+function mergeConfigUpdate(existing, incoming) {
+  const next = { ...existing, ...incoming };
+  if (incoming.ai) {
+    next.ai = { ...(existing.ai || {}), ...incoming.ai };
+    if (!incoming.ai.apiKey && existing.ai?.apiKey) {
+      next.ai.apiKey = existing.ai.apiKey;
+    }
+    delete next.ai.hasApiKey;
+  }
+  return next;
 }
 
 function readJsonSafely(filePath, fallback = {}) {
@@ -244,24 +340,38 @@ async function callAIAPI(provider, apiKey, model, customUrl, prompt) {
     throw new Error('Invalid provider or missing custom URL');
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model || providerConfig.defaultModel,
-      messages: [
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 200,
-      temperature: 0.7,
-    }),
-  });
+  const parsedUrl = new URL(url);
+  if (!['https:', 'http:'].includes(parsedUrl.protocol)) {
+    throw new Error('Invalid API URL');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: model || providerConfig.defaultModel,
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 200,
+        temperature: 0.7,
+      }),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
-    const error = await response.text();
+    const error = (await response.text()).slice(0, 500);
     throw new Error(`API error: ${error}`);
   }
 
@@ -319,10 +429,12 @@ app.get('/api/logs', (req, res) => {
   res.json(logs);
 });
 
-app.get('/api/posts/*', (req, res) => {
+app.get('/api/posts/*', (req, res, next) => {
+  if (req.path.endsWith('/export')) return next();
   let filePath;
   try {
     filePath = resolveContentPath(req.params[0]);
+    assertExtension(filePath, ['.md']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
@@ -338,6 +450,7 @@ app.get('/api/logs/*', (req, res) => {
   let filePath;
   try {
     filePath = resolveLogsPath(req.params[0]);
+    assertExtension(filePath, ['.json']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
@@ -353,6 +466,7 @@ app.get('/api/posts/*/export', (req, res) => {
   let filePath;
   try {
     filePath = resolveContentPath(req.params[0]);
+    assertExtension(filePath, ['.md']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
@@ -393,13 +507,14 @@ app.get('/api/posts/*/export', (req, res) => {
 
 app.post('/api/posts', (req, res) => {
   const { path: filePath, content } = req.body;
-  if (!filePath || typeof filePath !== 'string' || typeof content !== 'string') {
+  if (!filePath || typeof filePath !== 'string' || typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > MAX_MARKDOWN_SIZE) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
 
   let fullPath;
   try {
     fullPath = resolveContentPath(filePath);
+    assertExtension(fullPath, ['.md']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
@@ -416,16 +531,22 @@ app.post('/api/logs', (req, res) => {
     return res.status(400).json({ error: 'Invalid payload' });
   }
 
+  const serialized = JSON.stringify(data, null, 2);
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_LOG_SIZE) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
   let fullPath;
   try {
     fullPath = resolveLogsPath(filePath);
+    assertExtension(fullPath, ['.json']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
 
   const dir = dirname(fullPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(fullPath, JSON.stringify(data, null, 2), 'utf-8');
+  writeFileSync(fullPath, serialized, 'utf-8');
   res.json({ success: true });
 });
 
@@ -433,6 +554,7 @@ app.delete('/api/posts/*', (req, res) => {
   let filePath;
   try {
     filePath = resolveContentPath(req.params[0]);
+    assertExtension(filePath, ['.md']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
@@ -449,6 +571,7 @@ app.delete('/api/logs/*', (req, res) => {
   let filePath;
   try {
     filePath = resolveLogsPath(req.params[0]);
+    assertExtension(filePath, ['.json']);
   } catch {
     return res.status(400).json({ error: 'Invalid path' });
   }
@@ -462,12 +585,16 @@ app.delete('/api/logs/*', (req, res) => {
 });
 
 app.get('/api/config', (req, res) => {
-  const config = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf-8'));
-  res.json(config);
+  res.json(redactConfig(readConfigFile()));
 });
 
 app.post('/api/config', (req, res) => {
-  writeFileSync(join(ROOT, 'config.json'), JSON.stringify(req.body, null, 2), 'utf-8');
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
+  const nextConfig = mergeConfigUpdate(readConfigFile(), req.body);
+  writeConfigFile(nextConfig);
   res.json({ success: true });
 });
 
@@ -481,6 +608,9 @@ app.get('/api/friends', (req, res) => {
 });
 
 app.post('/api/friends', (req, res) => {
+  if (!Array.isArray(req.body) || req.body.length > MAX_FRIENDS) {
+    return res.status(400).json({ error: 'Invalid friends payload' });
+  }
   if (!existsSync(PATHS.DATA)) mkdirSync(PATHS.DATA);
   writeFileSync(join(PATHS.DATA, 'friends.json'), JSON.stringify(req.body, null, 2), 'utf-8');
   res.json({ success: true });
@@ -492,8 +622,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   }
   res.json({ 
     success: true, 
-    url: `/images/${req.file.filename}`,
-    path: req.file.path
+    url: `/images/${req.file.filename}`
   });
 });
 
@@ -503,7 +632,7 @@ app.get('/api/images', (req, res) => {
     return res.json([]);
   }
   const images = readdirSync(imagesDir)
-    .filter(f => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f))
+    .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f))
     .map(f => ({
       name: f,
       url: `/images/${f}`
@@ -513,8 +642,8 @@ app.get('/api/images', (req, res) => {
 
 app.delete('/api/images/:filename', (req, res) => {
   try {
-    const filename = req.params.filename;
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    const filename = basename(req.params.filename);
+    if (filename !== req.params.filename || !/\.(jpg|jpeg|png|gif|webp)$/i.test(filename)) {
       return res.status(400).json({ error: 'Invalid filename' });
     }
     
@@ -566,7 +695,7 @@ app.get('/api/about', (req, res) => {
 app.post('/api/about', (req, res) => {
   try {
     const { content } = req.body;
-    if (typeof content !== 'string') {
+    if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > MAX_MARKDOWN_SIZE) {
       return res.status(400).json({ error: 'Invalid content' });
     }
 
@@ -584,14 +713,21 @@ app.post('/api/about', (req, res) => {
 });
 
 app.post('/api/ai/test', async (req, res) => {
-  const { provider, apiKey, model, customUrl } = req.body;
+  const savedAi = readConfigFile().ai || {};
+  const { provider, apiKey, model, customUrl } = req.body || {};
+  const ai = {
+    provider: provider || savedAi.provider,
+    apiKey: apiKey || savedAi.apiKey,
+    model: model || savedAi.model,
+    customUrl: customUrl || savedAi.customUrl,
+  };
   
-  if (!apiKey) {
+  if (!ai.apiKey) {
     return res.status(400).json({ error: 'API Key is required' });
   }
   
   try {
-    const response = await callAIAPI(provider, apiKey, model, customUrl, 'Hello, this is a test.');
+    await callAIAPI(ai.provider, ai.apiKey, ai.model, ai.customUrl, 'Hello, this is a test.');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -599,24 +735,26 @@ app.post('/api/ai/test', async (req, res) => {
 });
 
 app.post('/api/ai/summary', async (req, res) => {
-  const { content, provider, apiKey, model, customUrl } = req.body;
-  
-  if (!apiKey) {
+  const { content } = req.body || {};
+  const ai = readConfigFile().ai || {};
+
+  if (!ai.apiKey) {
     return res.status(400).json({ error: 'API Key is required' });
   }
-  
-  if (!content) {
+
+  if (typeof content !== 'string' || !content.trim() || Buffer.byteLength(content, 'utf8') > 20000) {
     return res.status(400).json({ error: 'Content is required' });
   }
-  
-  const prompt = `请为以下文章生成一段简洁的摘要（50-100字），突出文章的核心内容和要点：
 
-${content}
-
-摘要：`;
-  
+  const prompt = [
+    'Write a concise Chinese summary in 50-100 characters. Focus on the article core ideas:',
+    '',
+    content,
+    '',
+    'Summary:',
+  ].join('\n');
   try {
-    const summary = await callAIAPI(provider, apiKey, model, customUrl, prompt);
+    const summary = await callAIAPI(ai.provider, ai.apiKey, ai.model, ai.customUrl, prompt);
     res.json({ summary });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -624,8 +762,8 @@ ${content}
 });
 
 app.post('/api/build', (req, res) => {
-  const execAsync = promisify(exec);
-  execAsync('node src/build.js', {
+  const execFileAsync = promisify(execFile);
+  execFileAsync('node', ['src/build.js'], {
     cwd: ROOT,
     env: {
       ...process.env,
@@ -642,10 +780,17 @@ app.post('/api/build', (req, res) => {
     });
 });
 
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || err.message?.includes('allowed')) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
+});
+
 // ==========================================
 // START SERVER - 启动服务器
 // ==========================================
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`🌸 Ham Blog Admin running at http://localhost:${PORT}`);
 });

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { escapeHtml, withBasePath } from '../lib/utils.js';
+import { escapeHtml, safeUrl, withBasePath } from '../lib/utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -59,6 +59,16 @@ function buildThemeVars(themeConfig) {
   </style>`;
 }
 
+function renderNavLinks(items, basePath) {
+  return items
+    .map((item) => {
+      const text = escapeHtml(item.text || '');
+      const icon = item.icon ? `<span class="nav-icon">${escapeHtml(item.icon)}</span>` : '';
+      return `          <a href="${safeUrl(item.url, basePath)}" class="nav-link">${icon} ${text}</a>`;
+    })
+    .join('\n');
+}
+
 export function renderLayout(config, {
   title,
   content,
@@ -87,16 +97,21 @@ export function renderLayout(config, {
   const imagePath = withBasePath(image, basePath);
   const imageUrl = image.startsWith('http') ? image : `${siteUrl}${imagePath}`;
   
-  const navLinks = config.nav
-    .map(item => `          <a href="${withBasePath(item.url, basePath)}" class="nav-link">${item.icon || ''} ${item.text}</a>`)
-    .join('\n');
-
+  const navLinks = renderNavLinks(config.nav || [], basePath);
   const mobileNavLinks = config.nav
-    .map(item => `    <a href="${withBasePath(item.url, basePath)}" class="nav-link">${item.icon || ''} ${item.text}</a>`)
+    .map((item) => {
+      const text = escapeHtml(item.text || '');
+      const icon = item.icon ? `<span class="nav-icon">${escapeHtml(item.icon)}</span>` : '';
+      return `    <a href="${safeUrl(item.url, basePath)}" class="nav-link">${icon} ${text}</a>`;
+    })
     .join('\n');
+  const safeBackground = escapeHtml(config.background?.type || 'default');
+  const safeTheme = escapeHtml(theme);
+  const safeFavicon = config.favicon ? safeUrl(config.favicon, basePath) : withBasePath('/favicon.svg', basePath);
+  const themeVars = buildThemeVars(themeConfig);
 
   return `<!DOCTYPE html>
-<html lang="${config.language}">
+  <html lang="${escapeHtml(config.language || 'zh-CN')}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -114,19 +129,20 @@ export function renderLayout(config, {
   <meta name="twitter:description" content="${escapeHtml(pageDescription)}">
   <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
   <link rel="canonical" href="${escapeHtml(pageUrl)}">
-  ${config.favicon ? `<link rel="icon" href="${escapeHtml(config.favicon)}" type="image/x-icon">` : `<link rel="icon" href="${withBasePath('/favicon.svg', basePath)}" type="image/svg+xml">`}
+  <link rel="icon" href="${escapeHtml(safeFavicon)}" type="${config.favicon ? 'image/x-icon' : 'image/svg+xml'}">
   <link rel="alternate" type="application/rss+xml" href="${withBasePath('/rss.xml', basePath)}">
   <link rel="stylesheet" href="${withBasePath('/style.css', basePath)}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-${buildThemeVars(themeConfig)}
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.moonshot.cn https://api.siliconflow.cn; frame-src https://giscus.app;">
+${themeVars}
 </head>
-<body data-theme="${theme}" data-background="${config.background?.type || 'default'}">
+<body data-theme="${safeTheme}" data-background="${safeBackground}">
   <!-- Particle Background -->
   <canvas id="particle-canvas"></canvas>
   
   <!-- Navigation -->
   <nav class="nav-glass">
-    <a href="${withBasePath('/', basePath)}" class="nav-brand">${config.title}</a>
+    <a href="${withBasePath('/', basePath)}" class="nav-brand">${escapeHtml(config.title)}</a>
     <div class="nav-links">
 ${navLinks}
     </div>
@@ -157,8 +173,8 @@ ${content}
   <!-- Footer -->
   <footer class="footer-glass">
     <div class="footer-content">
-      <p>&copy; ${new Date().getFullYear()} ${config.author}</p>
-      <p class="footer-callsign">${config.callsign || ''}</p>
+      <p>&copy; ${new Date().getFullYear()} ${escapeHtml(config.author || '')}</p>
+      <p class="footer-callsign">${escapeHtml(config.callsign || '')}</p>
     </div>
   </footer>
 
@@ -169,7 +185,7 @@ ${content}
     </svg>
   </button>
 
-  <script src="${withBasePath('/script.js', basePath)}"></script>
+  <script src="${withBasePath('/script.js', basePath)}" defer></script>
 </body>
 </html>`;
 }

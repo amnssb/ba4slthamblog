@@ -184,7 +184,7 @@ function build() {
   // Generate tag pages
   for (const tag of Object.keys(tagMap)) {
     const html = renderTagIndex(config, tag, tagMap[tag], theme);
-    writeTextFile(join(DIST, 'tag', tag, 'index.html'), html);
+    writeTextFile(join(DIST, 'tag', slugify(tag) || tag, 'index.html'), html);
   }
 
   // Generate all tags page
@@ -229,7 +229,7 @@ function build() {
     ...allPosts.map((p) => p.url),
     '/logs/',
     ...allLogs.map((log) => log.url),
-    ...Object.keys(tagMap).map((t) => `/tag/${t}/`),
+    ...Object.keys(tagMap).map((t) => `/tag/${slugify(t) || t}/`),
     '/tags/',
     ...(hasAboutPage ? ['/about/'] : []),
     ...(config.features?.friends?.enabled !== false ? ['/friends/'] : []),

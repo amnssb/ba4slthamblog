@@ -37,7 +37,7 @@
   --radius-full: 9999px;
   
   /* Glass Effect */
-  --glass-blur: 20px;
+  --glass-blur: 12px;
   --glass-saturate: 180%;
 }
 
@@ -1658,6 +1658,38 @@ body {
     width: 36px;
     height: 36px;
     font-size: 1rem;
+  }
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(34, 211, 238, 0.45);
+  outline-offset: 2px;
+}
+
+.post-card,
+.friend-card,
+.qsl-info-item,
+.stat-pill {
+  content-visibility: auto;
+  contain-intrinsic-size: 180px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  #particle-canvas {
+    display: none;
   }
 }
 

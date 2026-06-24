@@ -52,23 +52,32 @@
   function initParticles() {
     const canvas = document.getElementById('particle-canvas');
     if (!canvas) return;
+    if (document.body.dataset.background !== 'particle') {
+      canvas.remove();
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
     let particles = [];
     let animationId;
     let isVisible = true;
+    let resizeId;
 
     // Check if user prefers reduced motion
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReducedMotion) return;
 
-    function resize() {
+    function resize(shouldReset = false) {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      if (shouldReset) init();
     }
 
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(resizeId);
+      resizeId = requestAnimationFrame(() => resize(true));
+    }, { passive: true });
 
     // Particle class
     class Particle {
@@ -132,7 +141,7 @@
     // Initialize particles
     function init() {
       particles = [];
-      const particleCount = Math.min(30, Math.floor(window.innerWidth / 50));
+      const particleCount = Math.min(window.innerWidth < 768 ? 12 : 24, Math.floor(window.innerWidth / 64));
       for (let i = 0; i < particleCount; i++) {
         const p = new Particle();
         p.y = Math.random() * canvas.height;
@@ -145,10 +154,7 @@
     // Animation loop
     let frameCount = 0;
     function animate() {
-      if (!isVisible) {
-        animationId = requestAnimationFrame(animate);
-        return;
-      }
+      if (!isVisible) return;
 
       frameCount++;
       // Render every 2nd frame for performance
@@ -168,11 +174,18 @@
     // Visibility handling
     document.addEventListener('visibilitychange', () => {
       isVisible = document.visibilityState === 'visible';
+      if (isVisible && !animationId) {
+        animationId = requestAnimationFrame(animate);
+      } else if (!isVisible) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
     });
 
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
       cancelAnimationFrame(animationId);
+      cancelAnimationFrame(resizeId);
     });
   }
 

@@ -7,6 +7,7 @@ export function slugify(str) {
 
 export function formatDate(dateStr) {
   const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return String(dateStr ?? '');
   return d.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -15,7 +16,7 @@ export function formatDate(dateStr) {
 }
 
 export function escapeHtml(str) {
-  return str
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -24,8 +25,9 @@ export function escapeHtml(str) {
 }
 
 export function truncate(str, len = 160) {
-  if (str.length <= len) return str;
-  return str.slice(0, len) + '...';
+  const value = String(str ?? '');
+  if (value.length <= len) return value;
+  return value.slice(0, len) + '...';
 }
 
 export function getTagFromCategory(category) {
@@ -47,4 +49,31 @@ export function withBasePath(path = '/', basePath = '') {
   const normalizedBase = normalizeBasePath(basePath);
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}` || '/';
+}
+
+export function safeUrl(path = '/', basePath = '') {
+  const value = String(path ?? '').trim();
+  const resolved = withBasePath(value, basePath);
+
+  if (
+    /^https?:\/\//i.test(resolved) ||
+    resolved.startsWith('//') ||
+    resolved.startsWith('/') ||
+    resolved.startsWith('#') ||
+    resolved.startsWith('mailto:') ||
+    resolved.startsWith('tel:')
+  ) {
+    return resolved;
+  }
+
+  return normalizeBasePath(basePath) || '/';
+}
+
+export function serializeJsonForScript(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }

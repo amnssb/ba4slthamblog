@@ -1,24 +1,25 @@
 import { renderLayout } from './layout.js';
-import { formatDate, truncate, withBasePath } from '../lib/utils.js';
+import { escapeHtml, formatDate, safeUrl, slugify, truncate, withBasePath } from '../lib/utils.js';
 
 export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 'anime-sakura') {
   const basePath = config.__basePath || '';
   const headerHtml = `
     <div class="page-header">
-      <h1 class="site-title">${config.title}</h1>
-      <p class="site-subtitle">${config.subtitle || ''}</p>
-      <p class="site-description">${config.description}</p>
+      <h1 class="site-title">${escapeHtml(config.title)}</h1>
+      <p class="site-subtitle">${escapeHtml(config.subtitle || '')}</p>
+      <p class="site-description">${escapeHtml(config.description)}</p>
     </div>
   `;
 
   const postsHtml = posts
-    .map(post => {
-      const coverHtml = post.cover
-        ? `<div class="post-card-cover" style="background-image: url('${withBasePath(post.cover, basePath)}')"></div>`
-        : `<div class="post-card-cover"></div>`;
+    .map((post) => {
+      const coverUrl = post.cover ? safeUrl(post.cover, basePath) : '';
+      const coverHtml = coverUrl
+        ? `<div class="post-card-cover" style="background-image: url('${escapeHtml(coverUrl)}')"></div>`
+        : '<div class="post-card-cover"></div>';
 
-      const tagsHtml = post.tags
-        .map(t => `<span class="tag">${t}</span>`)
+      const tagsHtml = (post.tags || [])
+        .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
         .join(' ');
 
       return `
@@ -26,15 +27,13 @@ export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 
       <a href="${withBasePath(post.url, basePath)}" class="post-card-link">
         ${coverHtml}
         <div class="post-card-body">
-          <h2 class="post-card-title">${post.title}</h2>
+          <h2 class="post-card-title">${escapeHtml(post.title)}</h2>
           <div class="post-card-meta">
-            <time>${formatDate(post.date)}</time>
-            <span>${post.category}</span>
+            <time datetime="${escapeHtml(post.date)}">${formatDate(post.date)}</time>
+            <span>${escapeHtml(post.category)}</span>
           </div>
-          <p class="post-card-excerpt">${truncate(post.summary || post.excerpt || '', 150)}</p>
-          <div class="post-card-tags">
-            ${tagsHtml}
-          </div>
+          <p class="post-card-excerpt">${escapeHtml(truncate(post.summary || post.excerpt || '', 150))}</p>
+          <div class="post-card-tags">${tagsHtml}</div>
         </div>
       </a>
     </article>`;
@@ -55,7 +54,10 @@ ${Array.from({ length: totalPages }, (_, i) => {
   const tagsCloud = Object.entries(tagMap)
     .sort((a, b) => b[1].length - a[1].length)
     .slice(0, 10)
-    .map(([tag, count]) => `<a href="${withBasePath(`/tag/${tag}/`, basePath)}" class="tag">${tag} <small>(${count.length})</small></a>`)
+    .map(([tag, postsForTag]) => {
+      const pathTag = slugify(tag) || tag;
+      return `<a href="${withBasePath(`/tag/${pathTag}/`, basePath)}" class="tag">${escapeHtml(tag)} <small>(${postsForTag.length})</small></a>`;
+    })
     .join(' ');
 
   const content = `
@@ -66,9 +68,7 @@ ${postsHtml}
 ${paginationHtml}
     <div class="tags-section card-glass">
       <h3>热门标签</h3>
-      <div class="tags-cloud">
-        ${tagsCloud}
-      </div>
+      <div class="tags-cloud">${tagsCloud}</div>
     </div>
   `;
 

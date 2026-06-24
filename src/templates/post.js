@@ -1,23 +1,23 @@
 import { renderLayout } from './layout.js';
-import { formatDate, truncate, withBasePath } from '../lib/utils.js';
+import { escapeHtml, formatDate, safeUrl, slugify, truncate, withBasePath } from '../lib/utils.js';
 
 export function renderPost(config, post, prevPost, nextPost, theme = 'anime-sakura') {
   const basePath = config.__basePath || '';
-  const tagsHtml = post.tags
-    .map(tag => `<a href="${withBasePath(`/tag/${tag}/`, basePath)}" class="tag">${tag}</a>`)
+  const tagsHtml = (post.tags || [])
+    .map((tag) => `<a href="${withBasePath(`/tag/${slugify(tag) || tag}/`, basePath)}" class="tag">${escapeHtml(tag)}</a>`)
     .join(' ');
 
   const prevHtml = prevPost
     ? `<a href="${withBasePath(prevPost.url, basePath)}" class="post-nav-item prev">
-         <div class="post-nav-label">← 上一篇</div>
-         <div class="post-nav-title">${prevPost.title}</div>
+         <div class="post-nav-label">上一篇</div>
+         <div class="post-nav-title">${escapeHtml(prevPost.title)}</div>
        </a>`
     : '<div></div>';
 
   const nextHtml = nextPost
     ? `<a href="${withBasePath(nextPost.url, basePath)}" class="post-nav-item">
-         <div class="post-nav-label">下一篇 →</div>
-         <div class="post-nav-title">${nextPost.title}</div>
+         <div class="post-nav-label">下一篇</div>
+         <div class="post-nav-title">${escapeHtml(nextPost.title)}</div>
        </a>`
     : '<div></div>';
 
@@ -26,24 +26,24 @@ export function renderPost(config, post, prevPost, nextPost, theme = 'anime-saku
   const content = `
     <article class="post-article">
       <header class="post-header">
-        <h1 class="post-title">${post.title}</h1>
+        <h1 class="post-title">${escapeHtml(post.title)}</h1>
         <div class="post-meta">
-          <time datetime="${post.date}">${formatDate(post.date)}</time>
-          <span class="post-category">${post.category}</span>
+          <time datetime="${escapeHtml(post.date)}">${formatDate(post.date)}</time>
+          <span class="post-category">${escapeHtml(post.category)}</span>
           <span class="post-tags-inline">${tagsHtml}</span>
         </div>
         ${renderSummary(post.summary)}
       </header>
-      
+
       <div class="post-content">
 ${post.html}
       </div>
-      
+
       <footer class="post-nav">
         ${prevHtml}
         ${nextHtml}
       </footer>
-      
+
       ${renderGiscus(config)}
     </article>
   `;
@@ -55,21 +55,9 @@ ${post.html}
     theme,
     description: truncate(post.excerpt || config.description, 160),
     pathname: post.url,
-    image: post.cover || '/favicon.svg',
+    image: safeUrl(post.cover || '/favicon.svg', ''),
     type: 'article',
   });
-}
-
-function escapeHtml(text) {
-  const div = { __html: '' };
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, (m) => map[m]);
 }
 
 function renderSummary(summary) {
@@ -79,9 +67,9 @@ function renderSummary(summary) {
         <div class="post-summary-box">
           <details class="summary-details">
             <summary class="summary-toggle">
-              <span class="summary-icon">📋</span>
+              <span class="summary-icon">i</span>
               <span class="summary-text">文章摘要</span>
-              <span class="summary-arrow">▶</span>
+              <span class="summary-arrow">v</span>
             </summary>
             <div class="summary-content">
               <p>${escapeHtml(summary)}</p>
@@ -93,18 +81,18 @@ function renderSummary(summary) {
 
 function renderGiscus(config) {
   if (!config.giscus || !config.giscus.repo) return '';
-  
+
   const { repo, repoId, category, categoryId } = config.giscus;
   if (!repoId || !categoryId) return '';
-  
+
   return `
       <div class="giscus-comments">
-        <h3 class="comments-title">💬 评论</h3>
+        <h3 class="comments-title">评论</h3>
         <script src="https://giscus.app/client.js"
-          data-repo="${repo}"
-          data-repo-id="${repoId}"
-          data-category="${category || 'General'}"
-          data-category-id="${categoryId}"
+          data-repo="${escapeHtml(repo)}"
+          data-repo-id="${escapeHtml(repoId)}"
+          data-category="${escapeHtml(category || 'General')}"
+          data-category-id="${escapeHtml(categoryId)}"
           data-mapping="pathname"
           data-strict="0"
           data-reactions-enabled="1"
@@ -120,16 +108,16 @@ function renderGiscus(config) {
 }
 
 function generateToc(html) {
-  const headings = html.match(/<h([2-3])[^>]*id="([^"]*)"[^>]*>([^<]*)<\/h\1>/g);
+  const headings = html.match(/<h([2-3])[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/h\1>/g);
   if (!headings) return '';
 
   const items = headings
-    .map(h => {
-      const m = h.match(/<h([2-3])[^>]*id="([^"]*)"[^>]*>([^<]*)<\/h\1>/);
-      if (!m) return '';
-      const level = parseInt(m[1]);
-      const id = m[2];
-      const text = m[3];
+    .map((heading) => {
+      const match = heading.match(/<h([2-3])[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/h\1>/);
+      if (!match) return '';
+      const level = Number.parseInt(match[1], 10);
+      const id = escapeHtml(match[2]);
+      const text = escapeHtml(match[3].replace(/<[^>]+>/g, '').trim());
       const indent = level === 2 ? 0 : 12;
       return `<li class="toc-item" style="padding-left:${indent}px"><a href="#${id}">${text}</a></li>`;
     })

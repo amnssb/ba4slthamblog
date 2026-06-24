@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { marked } from 'marked';
-import { slugify } from './utils.js';
+import { escapeHtml, slugify } from './utils.js';
 
 marked.setOptions({
   gfm: true,
@@ -46,7 +46,7 @@ export function parseFrontmatter(content) {
 }
 
 export function mdToHtml(md) {
-  const html = marked.parse(md);
+  const html = marked.parse(escapeHtml(md));
 
   // Ensure headings always have stable ids so TOC and anchor links work.
   return html.replace(/<h([1-6])>([\s\S]*?)<\/h\1>/g, (_, level, innerHtml) => {

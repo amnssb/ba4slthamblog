@@ -7,6 +7,58 @@ let editingPost = null;
 let editingLog = null;
 let editingFriend = null;
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, '&#096;');
+}
+
+function jsString(value) {
+  return JSON.stringify(String(value ?? ''))
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function safeUrl(value, fallback = '#') {
+  const url = String(value ?? '').trim();
+  if (!url) return fallback;
+  if (/^(https?:\/\/|\/(?!\/)|#|mailto:)/i.test(url)) return url;
+  return fallback;
+}
+
+function cssUrl(value) {
+  return safeUrl(value, '').replace(/['"()\\\r\n]/g, (char) => encodeURIComponent(char));
+}
+
+function apiPath(path) {
+  return String(path || '')
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/');
+}
+
+function renderBasicMarkdown(content) {
+  return escapeHtml(content)
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, href) => `<a href="${escapeAttr(safeUrl(href))}" target="_blank" rel="noopener noreferrer">${text}</a>`)
+    .replace(/\n/g, '<br>');
+}
+
 function slugify(text) {
   return text
     .toLowerCase()
@@ -156,16 +208,16 @@ async function loadDashboard() {
   document.getElementById('stat-friends').textContent = friends.length;
 
   document.getElementById('recent-posts-list').innerHTML = posts.slice(0, 5).map((post) => `
-    <div class="post-item-mini" onclick="editPost('${post.path}')">
-      <span>${post.title}</span>
-      <span class="mini-meta">${post.date}</span>
+    <div class="post-item-mini" onclick="editPost(${escapeAttr(jsString(post.path))})">
+      <span>${escapeHtml(post.title)}</span>
+      <span class="mini-meta">${escapeHtml(post.date)}</span>
     </div>
   `).join('') || '<div class="empty">暂无文章</div>';
 
   document.getElementById('recent-logs-list').innerHTML = logs.slice(0, 5).map((log) => `
-    <div class="post-item-mini" onclick="editLog('${log.path}')">
-      <span>${getLogTitle(log)}</span>
-      <span class="mini-meta">${log.date || ''} ${log.time || ''}</span>
+    <div class="post-item-mini" onclick="editLog(${escapeAttr(jsString(log.path))})">
+      <span>${escapeHtml(getLogTitle(log))}</span>
+      <span class="mini-meta">${escapeHtml(`${log.date || ''} ${log.time || ''}`)}</span>
     </div>
   `).join('') || '<div class="empty">暂无通联日志</div>';
 }
@@ -188,7 +240,7 @@ function editPost(path) {
   document.getElementById('post-tags').value = post?.tags?.join(', ') || '';
   document.getElementById('post-summary').value = post?.summary || '';
 
-  fetchJson(`/api/posts/${path}`).then((data) => {
+  fetchJson(`/api/posts/${apiPath(path)}`).then((data) => {
     const { meta, body } = parseFrontmatter(data.content);
     document.getElementById('post-content').value = body.trimStart();
     document.getElementById('post-cover-url').value = meta.cover || '';
@@ -269,21 +321,21 @@ function renderPostsList() {
   }
 
   grid.innerHTML = filteredPosts.map((post) => `
-    <div class="post-card glass" onclick="editPost('${post.path}')">
+    <div class="post-card glass" onclick="editPost(${escapeAttr(jsString(post.path))})">
       <div class="post-card-header">
-        <div class="post-card-cover"${post.cover ? ` style="background-image:url('${post.cover}'); background-size:cover; background-position:center;"` : ''}></div>
+        <div class="post-card-cover"${cssUrl(post.cover) ? ` style="background-image:url('${escapeAttr(cssUrl(post.cover))}'); background-size:cover; background-position:center;"` : ''}></div>
         <div class="post-card-info">
-          <div class="post-card-title">${post.title}</div>
-          <div class="post-card-meta">${post.date} · ${post.category}</div>
+          <div class="post-card-title">${escapeHtml(post.title)}</div>
+          <div class="post-card-meta">${escapeHtml(post.date)} / ${escapeHtml(post.category)}</div>
         </div>
       </div>
       <div class="post-card-tags">
-        ${post.tags?.map((tag) => `<span class="tag">${tag}</span>`).join('') || ''}
+        ${post.tags?.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('') || ''}
       </div>
       <div class="post-card-actions">
-        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); editPost('${post.path}')">编辑</button>
-        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); exportPost('${post.path}')">📤 导出</button>
-        <button class="glass-btn btn-sm btn-danger" onclick="event.stopPropagation(); deletePost('${post.path}')">删除</button>
+        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); editPost(${escapeAttr(jsString(post.path))})">编辑</button>
+        <button class="glass-btn btn-sm" onclick="event.stopPropagation(); exportPost(${escapeAttr(jsString(post.path))})">📤 导出</button>
+        <button class="glass-btn btn-sm btn-danger" onclick="event.stopPropagation(); deletePost(${escapeAttr(jsString(post.path))})">删除</button>
       </div>
     </div>
   `).join('');
@@ -298,24 +350,15 @@ function updateFilterOptions() {
   const tagSelect = document.getElementById('post-tag-filter');
 
   categorySelect.innerHTML = '<option value="">所有分类</option>' + 
-    categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    categories.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
 
   tagSelect.innerHTML = '<option value="">所有标签</option>' + 
-    allTags.map(t => `<option value="${t}">${t}</option>`).join('');
+    allTags.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
 }
 
 function updatePostPreview() {
   const content = document.getElementById('post-content').value;
-  const html = content
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/\n/g, '<br>');
-  document.getElementById('preview-content').innerHTML = html;
+  document.getElementById('preview-content').innerHTML = renderBasicMarkdown(content);
 }
 
 async function savePost() {
@@ -371,7 +414,7 @@ async function generateSummary() {
     return;
   }
   
-  if (!config.ai || !config.ai.apiKey) {
+  if (!config.ai || !config.ai.hasApiKey) {
     showToast('请先在站点设置中配置 AI', 'error');
     return;
   }
@@ -385,13 +428,7 @@ async function generateSummary() {
     const response = await fetchJson('/api/ai/summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        content: content.slice(0, 5000), // Limit content length
-        provider: config.ai.provider,
-        apiKey: config.ai.apiKey,
-        model: config.ai.model,
-        customUrl: config.ai.customUrl,
-      }),
+      body: JSON.stringify({ content: content.slice(0, 5000) }),
     });
     
     if (response.summary) {
@@ -410,7 +447,7 @@ async function generateSummary() {
 
 async function deletePost(path) {
   if (!confirm('确定要删除这篇文章吗？')) return;
-  await fetchJson(`/api/posts/${path}`, { method: 'DELETE' });
+  await fetchJson(`/api/posts/${apiPath(path)}`, { method: 'DELETE' });
   showToast('删除成功', 'success');
   await loadPosts();
 }
@@ -418,7 +455,7 @@ async function deletePost(path) {
 // Export post for cross-site sync
 async function exportPost(path) {
   try {
-    const response = await fetchJson(`/api/posts/${encodeURIComponent(path)}/export`);
+    const response = await fetchJson(`/api/posts/${apiPath(path)}/export`);
     
     // Create downloadable JSON file
     const dataStr = JSON.stringify(response, null, 2);
@@ -465,20 +502,20 @@ function renderLogsTable(data) {
   tbody.innerHTML = data.map((log, index) => {
     const modeClass = getModeClass(log.mode);
     return `
-      <tr onclick="editLog('${log.path}')">
+      <tr onclick="editLog(${escapeAttr(jsString(log.path))})">
         <td>${index + 1}</td>
-        <td>${log.date || '-'}</td>
-        <td>${log.time || '-'}</td>
-        <td><span class="callsign">${log.callsign || '-'}</span></td>
-        <td>${log.band || '-'}</td>
-        <td>${log.frequency || '-'}</td>
-        <td><span class="mode-badge ${modeClass}">${log.mode || '-'}</span></td>
-        <td><span class="rst-badge">${log.rstSent || '-'}/${log.rstReceived || '-'}</span></td>
-        <td>${truncate(log.qth || '-', 15)}</td>
+        <td>${escapeHtml(log.date || '-')}</td>
+        <td>${escapeHtml(log.time || '-')}</td>
+        <td><span class="callsign">${escapeHtml(log.callsign || '-')}</span></td>
+        <td>${escapeHtml(log.band || '-')}</td>
+        <td>${escapeHtml(log.frequency || '-')}</td>
+        <td><span class="mode-badge ${modeClass}">${escapeHtml(log.mode || '-')}</span></td>
+        <td><span class="rst-badge">${escapeHtml(log.rstSent || '-')}/${escapeHtml(log.rstReceived || '-')}</span></td>
+        <td>${escapeHtml(truncate(log.qth || '-', 15))}</td>
         <td>
           <div class="log-actions" onclick="event.stopPropagation()">
-            <button class="glass-btn btn-sm" onclick="editLog('${log.path}')">编辑</button>
-            <button class="glass-btn btn-sm btn-danger" onclick="deleteLog('${log.path}')">删除</button>
+            <button class="glass-btn btn-sm" onclick="editLog(${escapeAttr(jsString(log.path))})">编辑</button>
+            <button class="glass-btn btn-sm btn-danger" onclick="deleteLog(${escapeAttr(jsString(log.path))})">删除</button>
           </div>
         </td>
       </tr>
@@ -614,7 +651,7 @@ function initLogEditor() {
 
 function editLog(path) {
   editingLog = path;
-  fetchJson(`/api/logs/${path}`).then((log) => {
+  fetchJson(`/api/logs/${apiPath(path)}`).then((log) => {
     document.getElementById('log-editor-title').textContent = '编辑通联日志';
     document.getElementById('log-date').value = log.date || new Date().toISOString().split('T')[0];
     document.getElementById('log-time').value = log.time || '';
@@ -674,7 +711,7 @@ async function saveLog() {
 
 async function deleteLog(path) {
   if (!confirm('确定要删除这条通联日志吗？')) return;
-  await fetchJson(`/api/logs/${path}`, { method: 'DELETE' });
+  await fetchJson(`/api/logs/${apiPath(path)}`, { method: 'DELETE' });
   showToast('删除成功', 'success');
   await loadLogs();
 }
@@ -683,11 +720,11 @@ async function loadFriends() {
   friends = await fetchJson('/api/friends');
   document.getElementById('friends-grid').innerHTML = friends.map((friend, index) => `
     <div class="friend-card glass">
-      <img class="friend-avatar" src="${friend.avatar || '/favicon.svg'}" alt="${friend.name}">
+      <img class="friend-avatar" src="${escapeAttr(safeUrl(friend.avatar, '/favicon.svg'))}" alt="${escapeAttr(friend.name)}" loading="lazy" decoding="async">
       <div class="friend-info">
-        <div class="friend-name">${friend.name}</div>
-        <div class="friend-desc">${friend.desc}</div>
-        <span class="friend-group">${friend.group}</span>
+        <div class="friend-name">${escapeHtml(friend.name)}</div>
+        <div class="friend-desc">${escapeHtml(friend.desc || '')}</div>
+        <span class="friend-group">${escapeHtml(friend.group || 'other')}</span>
       </div>
       <div class="friend-actions">
         <button class="glass-btn btn-sm" onclick="editFriend(${index})">编辑</button>
@@ -807,7 +844,10 @@ async function loadSettings() {
   
   if (config.ai) {
     if (aiProvider) aiProvider.value = config.ai.provider || 'deepseek';
-    if (aiApiKey) aiApiKey.value = config.ai.apiKey || '';
+    if (aiApiKey) {
+      aiApiKey.value = '';
+      aiApiKey.placeholder = config.ai.hasApiKey ? 'Saved; leave blank to keep' : 'sk-xxxxxxxx';
+    }
     if (aiModel) aiModel.value = config.ai.model || '';
     if (aiCustomUrl) aiCustomUrl.value = config.ai.customUrl || '';
     if (aiCustomUrlGroup) aiCustomUrlGroup.style.display = config.ai?.provider === 'custom' ? 'block' : 'none';
@@ -966,10 +1006,11 @@ function initSettings() {
   saveAiBtn?.addEventListener('click', async () => {
     config.ai = {
       provider: aiProvider?.value || 'deepseek',
-      apiKey: aiApiKey?.value?.trim() || '',
       model: aiModel?.value?.trim() || '',
       customUrl: aiCustomUrl?.value?.trim() || '',
     };
+    const nextApiKey = aiApiKey?.value?.trim();
+    if (nextApiKey) config.ai.apiKey = nextApiKey;
     
     try {
       await fetchJson('/api/config', {
@@ -989,8 +1030,8 @@ function initSettings() {
     const model = aiModel?.value?.trim();
     const customUrl = aiCustomUrl?.value?.trim();
     
-    if (!apiKey) {
-      showToast('请先填写 API Key', 'error');
+    if (!apiKey && !config.ai?.hasApiKey) {
+      showToast('Please enter or save an API Key first', 'error');
       return;
     }
     
@@ -1216,12 +1257,12 @@ async function loadImages() {
     emptyState.classList.add('hidden');
     grid.innerHTML = images.map((img) => `
       <div class="image-card glass">
-        <img src="${img.url}" alt="${img.name}" loading="lazy">
+        <img src="${escapeAttr(safeUrl(img.url, '#'))}" alt="${escapeAttr(img.name)}" loading="lazy" decoding="async">
         <div class="image-overlay">
-          <button class="glass-btn btn-sm" onclick="copyImageUrl('${img.url}')">复制链接</button>
-          <button class="glass-btn btn-sm btn-danger" onclick="deleteImage('${img.name}')">删除</button>
+          <button class="glass-btn btn-sm" onclick="copyImageUrl(${escapeAttr(jsString(img.url))})">复制链接</button>
+          <button class="glass-btn btn-sm btn-danger" onclick="deleteImage(${escapeAttr(jsString(img.name))})">删除</button>
         </div>
-        <div class="image-name">${img.name}</div>
+        <div class="image-name">${escapeHtml(img.name)}</div>
       </div>
     `).join('');
   } catch (error) {
@@ -1239,7 +1280,7 @@ async function deleteImage(filename) {
   if (!confirm(`确定要删除 ${filename} 吗？`)) return;
   
   try {
-    await fetchJson(`/api/images/${filename}`, { method: 'DELETE' });
+    await fetchJson(`/api/images/${encodeURIComponent(filename)}`, { method: 'DELETE' });
     showToast('图片已删除', 'success');
     await loadImages();
   } catch (error) {
@@ -1292,20 +1333,20 @@ async function loadTags() {
   container.innerHTML = `
     <div class="tags-grid-admin">
       ${sortedTags.map(([tag, data]) => `
-        <div class="tag-card glass" data-tag="${tag}">
+        <div class="tag-card glass" data-tag="${escapeAttr(tag)}">
           <div class="tag-header">
-            <span class="tag-name">${tag}</span>
+            <span class="tag-name">${escapeHtml(tag)}</span>
             <span class="tag-count">${data.count} 篇文章</span>
           </div>
           <div class="tag-posts">
             ${data.posts.slice(0, 3).map(p => `
-              <div class="tag-post-item" onclick="editPost('${p.path}')">${p.title}</div>
+              <div class="tag-post-item" onclick="editPost(${escapeAttr(jsString(p.path))})">${escapeHtml(p.title)}</div>
             `).join('')}
             ${data.posts.length > 3 ? `<div class="tag-post-more">还有 ${data.posts.length - 3} 篇...</div>` : ''}
           </div>
           <div class="tag-actions">
-            <button class="glass-btn btn-sm" onclick="renameTag('${tag}')">重命名</button>
-            <button class="glass-btn btn-sm btn-danger" onclick="deleteTag('${tag}')">删除</button>
+            <button class="glass-btn btn-sm" onclick="renameTag(${escapeAttr(jsString(tag))})">重命名</button>
+            <button class="glass-btn btn-sm btn-danger" onclick="deleteTag(${escapeAttr(jsString(tag))})">删除</button>
           </div>
         </div>
       `).join('')}
@@ -1360,7 +1401,7 @@ async function deleteTag(tag) {
   for (const post of postsToUpdate) {
     const newTags = post.tags.filter(t => t !== tag);
     // 更新文章
-    const content = await fetchJson(`/api/posts/${post.path}`);
+    const content = await fetchJson(`/api/posts/${apiPath(post.path)}`);
     const { meta, body } = parseFrontmatter(content.content);
     meta.tags = newTags;
     
@@ -1412,9 +1453,9 @@ function renderNavList() {
     <div class="nav-item-row glass" data-index="${index}">
       <span class="nav-drag-handle">⋮⋮</span>
       <div class="nav-item-fields">
-        <input type="text" class="glass-input nav-text" value="${item.text}" placeholder="显示文本" data-index="${index}">
-        <input type="text" class="glass-input nav-url" value="${item.url}" placeholder="链接地址" data-index="${index}">
-        <input type="text" class="glass-input nav-icon" value="${item.icon || ''}" placeholder="图标" data-index="${index}">
+        <input type="text" class="glass-input nav-text" value="${escapeAttr(item.text)}" placeholder="显示文本" data-index="${index}">
+        <input type="text" class="glass-input nav-url" value="${escapeAttr(item.url)}" placeholder="链接地址" data-index="${index}">
+        <input type="text" class="glass-input nav-icon" value="${escapeAttr(item.icon || '')}" placeholder="图标" data-index="${index}">
       </div>
       <button class="glass-btn btn-sm btn-danger" onclick="removeNavItem(${index})">删除</button>
     </div>
@@ -1472,16 +1513,7 @@ async function loadAbout() {
 
 function updateAboutPreview() {
   const content = document.getElementById('about-content').value;
-  const html = content
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/\n/g, '<br>');
-  document.getElementById('about-preview-content').innerHTML = html;
+  document.getElementById('about-preview-content').innerHTML = renderBasicMarkdown(content);
 }
 
 async function saveAbout() {
