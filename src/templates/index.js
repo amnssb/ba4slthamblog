@@ -11,18 +11,23 @@ export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 
         ${config.subtitle ? `<p class="site-subtitle">${escapeHtml(config.subtitle)}</p>` : ''}
         <p class="site-description">${escapeHtml(config.description)}</p>
       </div>
-      <div class="site-intro-call">
-        <span>CALLSIGN</span>
-        <strong>${escapeHtml(config.callsign || config.title)}</strong>
+      <div class="station-panel" aria-label="电台状态">
+        <div class="station-status"><span class="station-status-dot"></span>ON AIR</div>
+        <strong class="station-callsign">${escapeHtml(config.callsign || config.title)}</strong>
+        <div class="station-clock"><span>UTC</span><time data-utc-clock>--:--:--</time></div>
       </div>
     </header>
   `;
 
   const postsHtml = posts
-    .map((post) => {
+    .map((post, index) => {
       const coverUrl = post.cover ? safeUrl(post.cover, basePath) : '';
+      const requestedOrientation = String(post.coverOrientation || 'auto').toLowerCase();
+      const coverOrientation = ['auto', 'portrait', 'landscape', 'square'].includes(requestedOrientation)
+        ? requestedOrientation
+        : 'auto';
       const coverHtml = coverUrl
-        ? `<div class="post-card-cover" style="background-image: url('${escapeHtml(coverUrl)}')"></div>`
+        ? `<img class="post-card-cover" data-cover-preview src="${escapeHtml(coverUrl)}" alt="" loading="${index === 0 ? 'eager' : 'lazy'}"${index === 0 ? ' fetchpriority="high"' : ''} decoding="async">`
         : '<div class="post-card-cover"></div>';
 
       const tagsHtml = (post.tags || [])
@@ -30,11 +35,11 @@ export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 
         .join(' ');
 
       return `
-    <article class="post-card">
+    <article class="post-card" data-cover-orientation="${coverUrl ? coverOrientation : 'empty'}" style="--post-index: '${String(index + 1).padStart(2, '0')}'">
       <a href="${withBasePath(post.url, basePath)}" class="post-card-link">
-        <div class="post-card-media">${coverHtml}</div>
+        <div class="post-card-media" data-cover-orientation="${coverUrl ? coverOrientation : 'empty'}">${coverHtml}</div>
         <div class="post-card-body">
-          <span class="post-card-kicker">${escapeHtml(post.category || 'ARTICLE')}</span>
+          <div class="post-card-topline"><span class="post-card-kicker">${escapeHtml(post.category || 'ARTICLE')}</span><span class="post-card-index" aria-hidden="true">${String(index + 1).padStart(2, '0')}</span></div>
           <h2 class="post-card-title">${escapeHtml(post.title)}</h2>
           <div class="post-card-meta">
             <time datetime="${escapeHtml(post.date)}">${formatDate(post.date)}</time>

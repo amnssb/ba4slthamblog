@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from 'fs';
+import { createHash } from 'crypto';
 import { join, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { readDirRecursive, writeTextFile, copyDir, cleanDir } from './lib/files.js';
@@ -6,7 +7,7 @@ import { processMarkdown } from './lib/markdown.js';
 import { generateRss } from './lib/rss.js';
 import { generateSearchIndex } from './lib/search.js';
 import { generateSitemap } from './lib/sitemap.js';
-import { truncate, normalizeBasePath, slugify } from './lib/utils.js';
+import { truncate, normalizeBasePath, slugify, withBasePath } from './lib/utils.js';
 import { renderPost } from './templates/post.js';
 import { renderIndex } from './templates/index.js';
 import { renderTagIndex, renderAllTags } from './templates/tag.js';
@@ -24,9 +25,37 @@ const DATA = join(ROOT, 'data');
 
 function readConfig() {
   const config = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf-8'));
+  if (!config.title || typeof config.title !== 'string') {
+    throw new Error('config.json: title must be a non-empty string');
+  }
+  if (config.url && !/^https?:\/\//i.test(config.url)) {
+    throw new Error('config.json: url must start with http:// or https://');
+  }
   // Remove sensitive data before passing to templates
   const { ai, ...safeConfig } = config;
   return safeConfig;
+}
+
+function createBuildFingerprint(basePath, theme) {
+  const hash = createHash('sha256');
+  const roots = [CONTENT, DATA, join(ROOT, 'src'), PUBLIC];
+  const files = roots
+    .flatMap((root) => existsSync(root) ? readDirRecursive(root) : [])
+    .concat(
+      join(ROOT, 'config.json'),
+      join(ROOT, 'package.json'),
+      join(ROOT, 'package-lock.json'),
+      join(ROOT, 'themes', theme, 'theme.json')
+    )
+    .filter((filePath) => existsSync(filePath))
+    .sort();
+
+  hash.update(basePath);
+  for (const filePath of files) {
+    hash.update(toPosixPath(relative(ROOT, filePath)));
+    hash.update(readFileSync(filePath));
+  }
+  return hash.digest('hex').slice(0, 12);
 }
 
 function toPosixPath(filePath) {
@@ -79,10 +108,14 @@ function readLogs(logsRoot) {
 }
 
 function build() {
+  const publicConfig = readConfig();
+  const basePath = normalizeBasePath(process.env.BLOG_BASE_PATH || '');
+  const theme = publicConfig.theme || 'anime-sakura';
+  const themeConfig = JSON.parse(readFileSync(join(ROOT, 'themes', theme, 'theme.json'), 'utf-8'));
   const config = {
-    ...readConfig(),
-    __basePath: normalizeBasePath(process.env.BLOG_BASE_PATH || ''),
-    __assetVersion: Date.now().toString(),
+    ...publicConfig,
+    __basePath: basePath,
+    __assetVersion: createBuildFingerprint(basePath, theme),
   };
   const postsRoot = join(CONTENT, 'posts');
   const logsRoot = join(CONTENT, 'logs');
@@ -125,6 +158,7 @@ function build() {
         summary: meta.summary || null,
         path: filePath,
         cover: meta.cover || null,
+        coverOrientation: meta.coverOrientation || 'auto',
       };
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -152,8 +186,6 @@ function build() {
       tagMap[tag].push(post);
     }
   }
-
-  const theme = config.theme || 'anime-sakura';
 
   // Generate index pages
   const perPage = Math.max(1, Number(config.postsPerPage) || 6);
@@ -240,7 +272,7 @@ function build() {
 
   // Generate search index
   if (config.features?.search?.enabled !== false) {
-    const searchIndex = generateSearchIndex([
+    const searchItems = [
       ...allPosts,
       ...allLogs.map((log) => ({
         title: log.title,
@@ -250,29 +282,35 @@ function build() {
         category: 'log',
         excerpt: log.excerpt,
       })),
-    ]);
+    ].map((item) => ({
+      ...item,
+      url: withBasePath(item.url, config.__basePath),
+    }));
+    const searchIndex = generateSearchIndex(searchItems);
     writeTextFile(join(DIST, 'search-index.json'), searchIndex);
   }
 
   // Generate manifest.json for PWA
   if (config.features?.pwa?.enabled !== false) {
-    const cacheName = `ham-blog-${Date.now()}`;
+    const cacheName = `ham-blog-${config.__assetVersion}`;
     const assetVersion = `?v=${config.__assetVersion}`;
+    const rootUrl = `${config.__basePath || ''}/`;
     const coreAssets = [
-      './',
-      `./style.css${assetVersion}`,
-      `./script.js${assetVersion}`,
-      `./manifest.json${assetVersion}`,
-      ...(config.features?.search?.enabled !== false ? [`./search-index.json${assetVersion}`] : []),
+      rootUrl,
+      `${config.__basePath || ''}/style.css${assetVersion}`,
+      `${config.__basePath || ''}/script.js${assetVersion}`,
+      `${config.__basePath || ''}/manifest.json${assetVersion}`,
+      ...(config.features?.search?.enabled !== false ? [`${config.__basePath || ''}/search-index.json${assetVersion}`] : []),
     ];
     const manifest = {
       name: config.title,
       short_name: config.title,
       description: config.description,
-      start_url: config.__basePath || '/',
+      start_url: rootUrl,
+      scope: rootUrl,
       display: 'standalone',
-      background_color: '#fef3f3',
-      theme_color: '#f472b6',
+      background_color: themeConfig.colors?.background || '#f5f7f8',
+      theme_color: themeConfig.colors?.primary || '#e64c8c',
       icons: [
         { src: `${config.__basePath || ''}/favicon.svg`, sizes: 'any', type: 'image/svg+xml' }
       ]
@@ -288,14 +326,41 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(
-    keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+    keys.filter((key) => key.startsWith('ham-blog-') && key !== CACHE_NAME).map((key) => caches.delete(key))
   )));
   self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('${rootUrl}')))
+    );
+    return;
+  }
+
+  event.respondWith(caches.match(event.request).then((cached) => {
+    const network = fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => cached);
+    return cached || network;
+  }));
 });
 `);
   }

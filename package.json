@@ -5,6 +5,8 @@
   "description": "自研二次元磨砂玻璃风格博客 + 本地管理工具",
   "scripts": {
     "build": "node src/build.js",
+    "test": "node --test",
+    "check": "npm test && npm run build",
     "preview": "npx serve dist -p 3000",
     "admin": "node admin/server.js",
     "dev": "npm run admin"

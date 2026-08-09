@@ -80,6 +80,7 @@ function renderSummary(summary) {
 }
 
 function renderGiscus(config) {
+  if (config.features?.comments?.enabled !== true) return '';
   if (!config.giscus || !config.giscus.repo) return '';
 
   const { repo, repoId, category, categoryId } = config.giscus;

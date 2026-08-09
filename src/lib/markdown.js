@@ -18,6 +18,12 @@ function isSafeMarkdownUrl(value, { image = false } = {}) {
 function renderMarkdown(md) {
   const renderer = new marked.Renderer();
 
+  // Keep Markdown HTML-safe without escaping the whole document before parsing.
+  // Pre-escaping breaks code blocks and double-escapes URLs such as `?a=1&b=2`.
+  renderer.html = function html({ text }) {
+    return escapeHtml(text);
+  };
+
   renderer.link = function link({ href, title, tokens }) {
     const text = this.parser.parseInline(tokens);
     if (!isSafeMarkdownUrl(href)) return text;
@@ -30,10 +36,10 @@ function renderMarkdown(md) {
     if (!isSafeMarkdownUrl(href, { image: true })) return escapeHtml(text);
 
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-    return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${titleAttr}>`;
+    return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${titleAttr} loading="lazy" decoding="async">`;
   };
 
-  return marked.parse(escapeHtml(md), { renderer });
+  return marked.parse(md, { renderer });
 }
 
 export function parseFrontmatter(content) {
@@ -75,11 +81,21 @@ export function parseFrontmatter(content) {
 
 export function mdToHtml(md) {
   const html = renderMarkdown(md);
+  const slugCounts = new Map();
 
-  // Ensure headings always have stable ids so TOC and anchor links work.
+  // Ensure headings have stable, unique ids so repeated names still work in the TOC.
   return html.replace(/<h([1-6])>([\s\S]*?)<\/h\1>/g, (_, level, innerHtml) => {
-    const text = innerHtml.replace(/<[^>]+>/g, '').trim();
-    const id = slugify(text);
+    const text = innerHtml
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;|&#0?39;/g, '')
+      .trim();
+    const baseId = slugify(text);
+    const count = (slugCounts.get(baseId) || 0) + 1;
+    slugCounts.set(baseId, count);
+    const id = count > 1 ? `${baseId}-${count}` : baseId;
     return id
       ? `<h${level} id="${id}">${innerHtml}</h${level}>`
       : `<h${level}>${innerHtml}</h${level}>`;

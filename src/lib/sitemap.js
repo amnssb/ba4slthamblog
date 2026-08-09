@@ -1,8 +1,11 @@
+import { escapeHtml, withBasePath } from './utils.js';
+
 export function generateSitemap(config, pages) {
-  const urls = pages
+  const siteUrl = String(config.url || '').replace(/\/$/, '');
+  const urls = [...new Set(pages)]
     .map(
       (page) => `  <url>
-    <loc>${config.url}${page}</loc>
+    <loc>${escapeHtml(`${siteUrl}${withBasePath(page, config.__basePath || '')}`)}</loc>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <priority>${page === '/' ? '1.0' : '0.8'}</priority>
   </url>`
