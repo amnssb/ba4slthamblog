@@ -43,6 +43,7 @@ const MAX_JSON_SIZE = '1mb';
 const MAX_MARKDOWN_SIZE = 1024 * 1024;
 const MAX_LOG_SIZE = 128 * 1024;
 const MAX_FRIENDS = 300;
+const ENV_AI_API_KEY = process.env.AI_API_KEY || '';
 
 // ==========================================
 // EXPRESS & WEBSOCKET - Express 和 WebSocket
@@ -223,7 +224,7 @@ function redactConfig(config) {
     safeConfig.ai = {
       ...safeConfig.ai,
       apiKey: '',
-      hasApiKey: Boolean(config.ai.apiKey),
+      hasApiKey: Boolean(config.ai.apiKey || ENV_AI_API_KEY),
     };
   }
   return safeConfig;
@@ -239,6 +240,16 @@ function mergeConfigUpdate(existing, incoming) {
     delete next.ai.hasApiKey;
   }
   return next;
+}
+
+function getAiConfig(overrides = {}) {
+  const savedAi = readConfigFile().ai || {};
+  return {
+    provider: overrides.provider || savedAi.provider,
+    apiKey: overrides.apiKey || ENV_AI_API_KEY || savedAi.apiKey,
+    model: overrides.model || savedAi.model,
+    customUrl: overrides.customUrl || savedAi.customUrl,
+  };
 }
 
 function readJsonSafely(filePath, fallback = {}) {
@@ -713,14 +724,8 @@ app.post('/api/about', (req, res) => {
 });
 
 app.post('/api/ai/test', async (req, res) => {
-  const savedAi = readConfigFile().ai || {};
   const { provider, apiKey, model, customUrl } = req.body || {};
-  const ai = {
-    provider: provider || savedAi.provider,
-    apiKey: apiKey || savedAi.apiKey,
-    model: model || savedAi.model,
-    customUrl: customUrl || savedAi.customUrl,
-  };
+  const ai = getAiConfig({ provider, apiKey, model, customUrl });
   
   if (!ai.apiKey) {
     return res.status(400).json({ error: 'API Key is required' });
@@ -736,7 +741,7 @@ app.post('/api/ai/test', async (req, res) => {
 
 app.post('/api/ai/summary', async (req, res) => {
   const { content } = req.body || {};
-  const ai = readConfigFile().ai || {};
+  const ai = getAiConfig();
 
   if (!ai.apiKey) {
     return res.status(400).json({ error: 'API Key is required' });

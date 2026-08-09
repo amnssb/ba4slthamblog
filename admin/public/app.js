@@ -1068,7 +1068,11 @@ const defaultTheme = {
 async function loadTheme() {
   try {
     const saved = localStorage.getItem('ham-blog-theme');
-    currentTheme = saved ? JSON.parse(saved) : { ...defaultTheme };
+    currentTheme = {
+      ...defaultTheme,
+      ...(config.appearance || {}),
+      ...(saved ? JSON.parse(saved) : {}),
+    };
     applyTheme(currentTheme);
     renderThemeSettings();
   } catch (e) {
@@ -1135,9 +1139,9 @@ function updateThemePreview() {
 async function saveTheme() {
   localStorage.setItem('ham-blog-theme', JSON.stringify(currentTheme));
   
-  // Also save to config for persistence across sessions
+  // Keep the selected theme name separate from its visual overrides.
   try {
-    config.theme = currentTheme;
+    config.appearance = currentTheme;
     await fetchJson('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1374,7 +1378,7 @@ async function addNewTag() {
 }
 
 async function renameTag(oldTag) {
-  const newTag = prompt(`将 "${oldTag}" 重命名为：`, oldTag);
+  const newTag = prompt(`将 "${oldTag}" 重命名为：`, oldTag)?.trim();
   if (!newTag || newTag === oldTag) return;
   
   if (tagsData[newTag]) {
@@ -1382,47 +1386,45 @@ async function renameTag(oldTag) {
     return;
   }
 
-  // 更新所有包含该标签的文章
-  const postsToUpdate = tagsData[oldTag].posts;
-  for (const post of postsToUpdate) {
-    const newTags = post.tags.map(t => t === oldTag ? newTag : t);
-    // 这里需要更新文章，简化处理
-  }
-  
-  showToast('标签重命名功能需要批量更新文章', 'info');
+  await updateTagsForPosts(tagsData[oldTag].posts, (tags) => tags.map((tag) => tag === oldTag ? newTag : tag));
+  showToast('标签已重命名', 'success');
   await loadTags();
 }
 
 async function deleteTag(tag) {
   if (!confirm(`确定删除标签 "${tag}" 吗？这将从所有文章中移除该标签。`)) return;
-  
-  // 从所有文章中移除该标签
-  const postsToUpdate = tagsData[tag].posts;
-  for (const post of postsToUpdate) {
-    const newTags = post.tags.filter(t => t !== tag);
-    // 更新文章
-    const content = await fetchJson(`/api/posts/${apiPath(post.path)}`);
-    const { meta, body } = parseFrontmatter(content.content);
-    meta.tags = newTags;
-    
-    const newContent = `---
-title: ${meta.title}
-date: ${meta.date}
-tags: [${newTags.join(', ')}]
-category: ${meta.category}
----
 
-${body}`;
-    
-    await fetchJson('/api/posts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: post.path, content: newContent }),
-    });
-  }
+  await updateTagsForPosts(tagsData[tag].posts, (tags) => tags.filter((currentTag) => currentTag !== tag));
   
   showToast('标签已删除', 'success');
   await loadTags();
+}
+
+async function updateTagsForPosts(postsToUpdate, transformTags) {
+  for (const post of postsToUpdate) {
+    const response = await fetchJson(`/api/posts/${apiPath(post.path)}`);
+    const { meta } = parseFrontmatter(response.content);
+    const tags = transformTags(Array.isArray(meta.tags) ? meta.tags : []);
+    const frontmatter = response.content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)/);
+    if (!frontmatter) continue;
+
+    const lines = frontmatter[2].split(/\r?\n/);
+    const tagsLine = `tags: [${tags.join(', ')}]`;
+    const tagIndex = lines.findIndex((line) => /^\s*tags\s*:/.test(line));
+    if (tagIndex === -1) {
+      lines.push(tagsLine);
+    } else {
+      lines[tagIndex] = tagsLine;
+    }
+
+    const content = `${frontmatter[1]}${lines.join('\n')}${frontmatter[3]}${response.content.slice(frontmatter[0].length)}`;
+
+    await fetchJson('/api/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: post.path, content }),
+    });
+  }
 }
 
 // ========================================

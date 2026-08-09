@@ -4,11 +4,18 @@ import { escapeHtml, formatDate, safeUrl, slugify, truncate, withBasePath } from
 export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 'anime-sakura') {
   const basePath = config.__basePath || '';
   const headerHtml = `
-    <div class="page-header">
-      <h1 class="site-title">${escapeHtml(config.title)}</h1>
-      <p class="site-subtitle">${escapeHtml(config.subtitle || '')}</p>
-      <p class="site-description">${escapeHtml(config.description)}</p>
-    </div>
+    <header class="site-intro">
+      <div>
+        <p class="eyebrow">AMATEUR RADIO NOTEBOOK</p>
+        <h1 class="site-title">${escapeHtml(config.title)}</h1>
+        ${config.subtitle ? `<p class="site-subtitle">${escapeHtml(config.subtitle)}</p>` : ''}
+        <p class="site-description">${escapeHtml(config.description)}</p>
+      </div>
+      <div class="site-intro-call">
+        <span>CALLSIGN</span>
+        <strong>${escapeHtml(config.callsign || config.title)}</strong>
+      </div>
+    </header>
   `;
 
   const postsHtml = posts
@@ -25,8 +32,9 @@ export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 
       return `
     <article class="post-card">
       <a href="${withBasePath(post.url, basePath)}" class="post-card-link">
-        ${coverHtml}
+        <div class="post-card-media">${coverHtml}</div>
         <div class="post-card-body">
+          <span class="post-card-kicker">${escapeHtml(post.category || 'ARTICLE')}</span>
           <h2 class="post-card-title">${escapeHtml(post.title)}</h2>
           <div class="post-card-meta">
             <time datetime="${escapeHtml(post.date)}">${formatDate(post.date)}</time>
@@ -62,13 +70,25 @@ ${Array.from({ length: totalPages }, (_, i) => {
 
   const content = `
 ${headerHtml}
-    <div class="posts-grid">
+    <div class="home-layout">
+      <section class="content-section latest-posts">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">LATEST</p>
+            <h2>最新文章</h2>
+          </div>
+          <span class="section-count">${posts.length} 篇</span>
+        </div>
+        <div class="posts-grid">
 ${postsHtml}
-    </div>
+        </div>
 ${paginationHtml}
-    <div class="tags-section card-glass">
-      <h3>热门标签</h3>
-      <div class="tags-cloud">${tagsCloud}</div>
+      </section>
+      <aside class="tags-section">
+        <p class="eyebrow">EXPLORE</p>
+        <h2>热门标签</h2>
+        <div class="tags-cloud">${tagsCloud}</div>
+      </aside>
     </div>
   `;
 

@@ -8,6 +8,34 @@ marked.setOptions({
   headerIds: true,
 });
 
+function isSafeMarkdownUrl(value, { image = false } = {}) {
+  const url = String(value ?? '').trim();
+  if (!url || url.startsWith('#') || url.startsWith('/') && !url.startsWith('//')) return true;
+  if (/^(?:\.\.?\/|https?:\/\/)/i.test(url)) return true;
+  return !image && /^(?:mailto:|tel:)/i.test(url);
+}
+
+function renderMarkdown(md) {
+  const renderer = new marked.Renderer();
+
+  renderer.link = function link({ href, title, tokens }) {
+    const text = this.parser.parseInline(tokens);
+    if (!isSafeMarkdownUrl(href)) return text;
+
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+    return `<a href="${escapeHtml(href)}"${titleAttr}>${text}</a>`;
+  };
+
+  renderer.image = function image({ href, title, text }) {
+    if (!isSafeMarkdownUrl(href, { image: true })) return escapeHtml(text);
+
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+    return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${titleAttr}>`;
+  };
+
+  return marked.parse(escapeHtml(md), { renderer });
+}
+
 export function parseFrontmatter(content) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) {
@@ -46,7 +74,7 @@ export function parseFrontmatter(content) {
 }
 
 export function mdToHtml(md) {
-  const html = marked.parse(escapeHtml(md));
+  const html = renderMarkdown(md);
 
   // Ensure headings always have stable ids so TOC and anchor links work.
   return html.replace(/<h([1-6])>([\s\S]*?)<\/h\1>/g, (_, level, innerHtml) => {

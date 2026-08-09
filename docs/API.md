@@ -207,7 +207,8 @@
   },
   "ai": {
     "provider": "deepseek",
-    "apiKey": "sk-xxxxx",
+    "apiKey": "",
+    "hasApiKey": true,
     "model": "deepseek-chat",
     "customUrl": ""
   },
@@ -217,6 +218,10 @@
   ]
 }
 ```
+
+`apiKey` is never returned by this endpoint. Set `AI_API_KEY` in the local
+environment to keep a key out of `config.json`; an empty `apiKey` preserves
+the environment-provided value.
 
 ### Update Config - 更新配置
 

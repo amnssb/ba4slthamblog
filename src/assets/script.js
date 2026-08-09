@@ -79,7 +79,10 @@
       resizeId = requestAnimationFrame(() => resize(true));
     }, { passive: true });
 
-    // Particle class
+    const themeColors = ['--primary', '--secondary', '--accent']
+      .map((name) => getComputedStyle(document.body).getPropertyValue(name).trim())
+      .filter(Boolean);
+
     class Particle {
       constructor() {
         this.reset();
@@ -87,28 +90,24 @@
 
       reset() {
         this.x = Math.random() * canvas.width;
-        this.y = -10;
-        this.size = Math.random() * 5 + 3;
-        this.speedX = Math.random() * 1 - 0.5;
-        this.speedY = Math.random() * 1 + 0.5;
+        this.y = -20;
+        this.size = Math.random() * 2.4 + 1.4;
+        this.fallSpeed = Math.random() * 0.016 + 0.012;
+        this.driftPhase = Math.random() * Math.PI * 2;
+        this.driftSpeed = Math.random() * 0.00016 + 0.00008;
         this.rotation = Math.random() * 360;
-        this.rotationSpeed = Math.random() * 2 - 1;
-        this.opacity = Math.random() * 0.5 + 0.3;
-        
-        // Sakura pink colors
-        const colors = ['#fbbf24', '#f472b6', '#fbcfe8', '#fde68a'];
-        this.color = colors[Math.floor(Math.random() * colors.length)];
-        
-        // Petal shape
-        this.type = Math.random() > 0.5 ? 'petal' : 'circle';
+        this.rotationSpeed = Math.random() * 0.018 - 0.009;
+        this.opacity = Math.random() * 0.14 + 0.1;
+        this.color = themeColors[Math.floor(Math.random() * themeColors.length)] || '#f472b6';
       }
 
-      update() {
-        this.x += this.speedX + Math.sin(this.y * 0.01) * 0.5;
-        this.y += this.speedY;
-        this.rotation += this.rotationSpeed;
+      update(delta) {
+        this.driftPhase += this.driftSpeed * delta;
+        this.x += Math.sin(this.driftPhase) * 0.014 * delta;
+        this.y += this.fallSpeed * delta;
+        this.rotation += this.rotationSpeed * delta;
 
-        if (this.y > canvas.height + 10) {
+        if (this.y > canvas.height + 20 || this.x < -20 || this.x > canvas.width + 20) {
           this.reset();
         }
       }
@@ -119,20 +118,11 @@
         ctx.rotate(this.rotation * Math.PI / 180);
         ctx.globalAlpha = this.opacity;
         ctx.fillStyle = this.color;
-
-        if (this.type === 'petal') {
-          // Draw petal shape
-          ctx.beginPath();
-          ctx.moveTo(0, -this.size);
-          ctx.bezierCurveTo(this.size, -this.size, this.size, this.size, 0, this.size);
-          ctx.bezierCurveTo(-this.size, this.size, -this.size, -this.size, 0, -this.size);
-          ctx.fill();
-        } else {
-          // Draw circle
-          ctx.beginPath();
-          ctx.arc(0, 0, this.size * 0.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        ctx.shadowBlur = this.size * 2;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.size, this.size * 0.48, 0, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
       }
@@ -141,7 +131,7 @@
     // Initialize particles
     function init() {
       particles = [];
-      const particleCount = Math.min(window.innerWidth < 768 ? 12 : 24, Math.floor(window.innerWidth / 64));
+      const particleCount = Math.min(window.innerWidth < 768 ? 8 : 16, Math.max(6, Math.floor(window.innerWidth / 96)));
       for (let i = 0; i < particleCount; i++) {
         const p = new Particle();
         p.y = Math.random() * canvas.height;
@@ -151,20 +141,17 @@
 
     init();
 
-    // Animation loop
-    let frameCount = 0;
-    function animate() {
+    let lastFrameTime = performance.now();
+    function animate(now) {
       if (!isVisible) return;
 
-      frameCount++;
-      // Render every 2nd frame for performance
-      if (frameCount % 2 === 0) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        particles.forEach(p => {
-          p.update();
-          p.draw();
-        });
-      }
+      const delta = Math.min(now - lastFrameTime, 40);
+      lastFrameTime = now;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach((particle) => {
+        particle.update(delta);
+        particle.draw();
+      });
 
       animationId = requestAnimationFrame(animate);
     }
@@ -175,6 +162,7 @@
     document.addEventListener('visibilitychange', () => {
       isVisible = document.visibilityState === 'visible';
       if (isVisible && !animationId) {
+        lastFrameTime = performance.now();
         animationId = requestAnimationFrame(animate);
       } else if (!isVisible) {
         cancelAnimationFrame(animationId);
@@ -347,12 +335,14 @@
     toggle.addEventListener('click', () => {
       toggle.classList.toggle('active');
       mobileNav.classList.toggle('show');
+      toggle.setAttribute('aria-expanded', String(mobileNav.classList.contains('show')));
     });
 
     mobileNav.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', () => {
         toggle.classList.remove('active');
         mobileNav.classList.remove('show');
+        toggle.setAttribute('aria-expanded', 'false');
       });
     });
 
@@ -360,8 +350,80 @@
       if (!toggle.contains(e.target) && !mobileNav.contains(e.target)) {
         toggle.classList.remove('active');
         mobileNav.classList.remove('show');
+        toggle.setAttribute('aria-expanded', 'false');
       }
     });
+  }
+
+  function initSearch() {
+    const dialog = document.getElementById('site-search');
+    const toggle = document.getElementById('search-toggle');
+    const input = document.getElementById('site-search-input');
+    const results = document.getElementById('site-search-results');
+    if (!dialog || !toggle || !input || !results) return;
+
+    let indexPromise;
+    const loadIndex = () => {
+      if (!indexPromise) {
+        indexPromise = fetch(document.body.dataset.searchIndex)
+          .then((response) => response.ok ? response.json() : [])
+          .catch(() => []);
+      }
+      return indexPromise;
+    };
+
+    function renderResults(items) {
+      results.replaceChildren();
+      if (!items.length) {
+        results.textContent = input.value.trim() ? '没有找到匹配内容。' : '输入关键词开始搜索。';
+        return;
+      }
+
+      items.slice(0, 10).forEach((item) => {
+        const link = document.createElement('a');
+        link.href = item.url;
+        link.className = 'search-result';
+
+        const title = document.createElement('strong');
+        title.textContent = item.title || '未命名内容';
+        const meta = document.createElement('span');
+        meta.textContent = [item.date, item.category, ...(item.tags || [])].filter(Boolean).join(' · ');
+        const excerpt = document.createElement('small');
+        excerpt.textContent = item.excerpt || '';
+        link.append(title, meta, excerpt);
+        results.appendChild(link);
+      });
+    }
+
+    toggle.addEventListener('click', async () => {
+      dialog.showModal();
+      input.focus();
+      renderResults([]);
+      await loadIndex();
+    });
+
+    input.addEventListener('input', async () => {
+      const query = input.value.trim().toLowerCase();
+      const index = await loadIndex();
+      if (!query) return renderResults([]);
+      const matches = index.filter((item) => [item.title, item.category, item.excerpt, ...(item.tags || [])]
+        .join(' ')
+        .toLowerCase()
+        .includes(query));
+      renderResults(matches);
+    });
+  }
+
+  function initPwa() {
+    if (!('serviceWorker' in navigator)) return;
+    if (['127.0.0.1', 'localhost'].includes(location.hostname)) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      });
+      return;
+    }
+    if (document.body.dataset.pwa !== 'true') return;
+    navigator.serviceWorker.register(document.body.dataset.serviceWorker).catch(() => {});
   }
 
   // ========================================
@@ -376,6 +438,8 @@
     initImages();
     initProgressBar();
     initMobileNav();
+    initSearch();
+    initPwa();
   }
 
   if (document.readyState === 'loading') {

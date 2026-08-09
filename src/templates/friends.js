@@ -20,7 +20,10 @@ export function renderFriends(config, friends, theme = 'anime-sakura') {
   const groupsHtml = Object.entries(groups)
     .map(([group, items]) => `
     <section class="friends-group">
-      <h2 class="group-title">${escapeHtml(groupNames[group] || group)}</h2>
+      <div class="section-heading group-heading">
+        <h2 class="group-title">${escapeHtml(groupNames[group] || group)}</h2>
+        <span class="section-count">${items.length} 个站点</span>
+      </div>
       <div class="friends-grid">
         ${items.map((friend) => {
           const avatar = friend.avatar ? safeUrl(friend.avatar, basePath) : withBasePath('/favicon.svg', basePath);
@@ -38,25 +41,30 @@ export function renderFriends(config, friends, theme = 'anime-sakura') {
   `).join('');
 
   const content = `
-    <div class="page-header">
-      <h1 class="page-title">友情链接</h1>
-      <p class="page-description">${friends.length} 位朋友的站点</p>
-    </div>
+    <header class="page-header page-header-split">
+      <div>
+        <p class="eyebrow">NETWORK</p>
+        <h1 class="page-title">友情链接</h1>
+        <p class="page-description">${friends.length} 位朋友的站点</p>
+      </div>
+      <p class="page-header-note">和独立站、无线电与技术爱好者保持联络。</p>
+    </header>
 
-    <div class="friends-content">
+    <div class="friends-content page-content-grid">
+      <div class="friends-list">
 ${groupsHtml}
-    </div>
-
-    <div class="friends-apply card-glass">
-      <h3>申请友链</h3>
-      <p>欢迎交换友链，请通过以下方式联系。</p>
-      <ul>
-        <li>Email: ${escapeHtml(config.email || 'your@email.com')}</li>
-        <li>本站信息</li>
-        <li>名称: ${escapeHtml(config.title)}</li>
-        <li>地址: ${escapeHtml(config.url)}</li>
-        <li>描述: ${escapeHtml(config.description)}</li>
-      </ul>
+      </div>
+      <aside class="friends-apply">
+        <p class="eyebrow">EXCHANGE</p>
+        <h2>申请友链</h2>
+        <p>欢迎交换友链，请通过以下方式联系。</p>
+        <ul>
+          <li>Email: ${escapeHtml(config.email || 'your@email.com')}</li>
+          <li>名称: ${escapeHtml(config.title)}</li>
+          <li>地址: ${escapeHtml(config.url)}</li>
+          <li>描述: ${escapeHtml(config.description)}</li>
+        </ul>
+      </aside>
     </div>
   `;
 

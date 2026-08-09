@@ -17,5 +17,3 @@ title: 关于
 
 - **QTH**: 
 - **电子邮件**: amnsamnssb@gmail.com
-
-## 关于本站

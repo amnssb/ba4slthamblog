@@ -82,6 +82,7 @@ function build() {
   const config = {
     ...readConfig(),
     __basePath: normalizeBasePath(process.env.BLOG_BASE_PATH || ''),
+    __assetVersion: Date.now().toString(),
   };
   const postsRoot = join(CONTENT, 'posts');
   const logsRoot = join(CONTENT, 'logs');
@@ -255,6 +256,15 @@ function build() {
 
   // Generate manifest.json for PWA
   if (config.features?.pwa?.enabled !== false) {
+    const cacheName = `ham-blog-${Date.now()}`;
+    const assetVersion = `?v=${config.__assetVersion}`;
+    const coreAssets = [
+      './',
+      `./style.css${assetVersion}`,
+      `./script.js${assetVersion}`,
+      `./manifest.json${assetVersion}`,
+      ...(config.features?.search?.enabled !== false ? [`./search-index.json${assetVersion}`] : []),
+    ];
     const manifest = {
       name: config.title,
       short_name: config.title,
@@ -264,10 +274,30 @@ function build() {
       background_color: '#fef3f3',
       theme_color: '#f472b6',
       icons: [
-        { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }
+        { src: `${config.__basePath || ''}/favicon.svg`, sizes: 'any', type: 'image/svg+xml' }
       ]
     };
     writeTextFile(join(DIST, 'manifest.json'), JSON.stringify(manifest, null, 2));
+    writeTextFile(join(DIST, 'service-worker.js'), `const CACHE_NAME = '${cacheName}';
+const CORE_ASSETS = ${JSON.stringify(coreAssets)};
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)));
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then((keys) => Promise.all(
+    keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+  )));
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+});
+`);
   }
 
   console.log('✅ Build complete!');

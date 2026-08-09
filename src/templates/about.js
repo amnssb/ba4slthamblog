@@ -22,14 +22,18 @@ export function renderAbout(config, html, theme = 'anime-sakura') {
     : '';
 
   const content = `
-    <div class="page-header">
-      <h1 class="page-title">关于</h1>
-    </div>
+    <header class="page-header page-header-split">
+      <div>
+        <p class="eyebrow">STATION PROFILE</p>
+        <h1 class="page-title">关于</h1>
+      </div>
+      <p class="page-header-note">记录电波里的相遇，也整理技术与日常。</p>
+    </header>
 
     <div class="about-content">
-      <div class="about-main card-glass">
+      <article class="about-main">
 ${html}
-      </div>
+      </article>
 
       ${callsignInfo}
     </div>

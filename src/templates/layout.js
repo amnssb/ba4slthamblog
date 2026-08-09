@@ -90,6 +90,8 @@ export function renderLayout(config, {
   
   const colors = themeConfig.colors || {};
   const basePath = config.__basePath || '';
+  const assetVersion = config.__assetVersion ? `?v=${encodeURIComponent(config.__assetVersion)}` : '';
+  const assetUrl = (path) => `${withBasePath(path, basePath)}${assetVersion}`;
   const pageDescription = description || config.description;
   const siteUrl = (config.url || '').replace(/\/$/, '');
   const pagePath = withBasePath(pathname, basePath);
@@ -98,6 +100,8 @@ export function renderLayout(config, {
   const imageUrl = image.startsWith('http') ? image : `${siteUrl}${imagePath}`;
   
   const navLinks = renderNavLinks(config.nav || [], basePath);
+  const searchEnabled = config.features?.search?.enabled !== false;
+  const pwaEnabled = config.features?.pwa?.enabled !== false;
   const mobileNavLinks = config.nav
     .map((item) => {
       const text = escapeHtml(item.text || '');
@@ -130,13 +134,14 @@ export function renderLayout(config, {
   <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
   <link rel="canonical" href="${escapeHtml(pageUrl)}">
   <link rel="icon" href="${escapeHtml(safeFavicon)}" type="${config.favicon ? 'image/x-icon' : 'image/svg+xml'}">
+  ${pwaEnabled ? `<link rel="manifest" href="${assetUrl('/manifest.json')}">` : ''}
   <link rel="alternate" type="application/rss+xml" href="${withBasePath('/rss.xml', basePath)}">
-  <link rel="stylesheet" href="${withBasePath('/style.css', basePath)}">
+  <link rel="stylesheet" href="${assetUrl('/style.css')}">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.moonshot.cn https://api.siliconflow.cn; frame-src https://giscus.app;">
 ${themeVars}
 </head>
-<body data-theme="${safeTheme}" data-background="${safeBackground}">
+<body data-theme="${safeTheme}" data-background="${safeBackground}" data-search-index="${assetUrl('/search-index.json')}" data-service-worker="${assetUrl('/service-worker.js')}" data-pwa="${pwaEnabled}">
   <!-- Particle Background -->
   <canvas id="particle-canvas"></canvas>
   
@@ -146,11 +151,12 @@ ${themeVars}
     <div class="nav-links">
 ${navLinks}
     </div>
+    ${searchEnabled ? '<button class="search-toggle" id="search-toggle" type="button" aria-label="搜索">⌕</button>' : ''}
     <button class="theme-toggle" id="theme-toggle" aria-label="切换主题">
       <span class="theme-icon-light">☀️</span>
       <span class="theme-icon-dark">🌙</span>
     </button>
-    <button class="nav-toggle" aria-label="菜单">
+    <button class="nav-toggle" aria-label="菜单" aria-expanded="false">
       <span></span>
       <span></span>
       <span></span>
@@ -161,6 +167,16 @@ ${navLinks}
   <div class="nav-mobile">
 ${mobileNavLinks}
   </div>
+
+  ${searchEnabled ? `
+  <dialog class="search-dialog" id="site-search">
+    <form method="dialog" class="search-dialog-header">
+      <label for="site-search-input">搜索文章和日志</label>
+      <button type="submit" aria-label="关闭搜索">×</button>
+    </form>
+    <input id="site-search-input" type="search" autocomplete="off" placeholder="输入标题、标签或关键词">
+    <div class="search-results" id="site-search-results" aria-live="polite"></div>
+  </dialog>` : ''}
 
   <!-- Main Content -->
   <main class="main-container">
@@ -185,7 +201,7 @@ ${content}
     </svg>
   </button>
 
-  <script src="${withBasePath('/script.js', basePath)}" defer></script>
+  <script src="${assetUrl('/script.js')}" defer></script>
 </body>
 </html>`;
 }
