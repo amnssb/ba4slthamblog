@@ -631,6 +631,17 @@ body {
   margin-top: 48px;
   padding-top: 32px;
   border-top: 1px solid var(--border);
+  width: 100%;
+  min-width: 0;
+}
+
+.giscus-comments .giscus,
+.giscus-comments .giscus-frame,
+.giscus-comments iframe[title="Comments"] {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  border: 0;
 }
 
 .comments-title {
