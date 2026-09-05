@@ -19,5 +19,12 @@
     "desc": "全球最大的业余无线电数据库",
     "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=qrz",
     "group": "ham"
+  },
+  {
+    "name": "BA4THG",
+    "url": "https://mizuki.top/",
+    "desc": "HX-Wrdzgzs",
+    "avatar": "https://help.mizuki.top/Picture/logo.webp",
+    "group": "ham"
   }
 ]
