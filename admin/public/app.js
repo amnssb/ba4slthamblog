@@ -72,34 +72,6 @@ function getLogTitle(log) {
   return [log.date, log.callsign, log.band, log.mode].filter(Boolean).join(' ') || '未命名日志';
 }
 
-function parseFrontmatter(content) {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) {
-    return { meta: {}, body: content };
-  }
-
-  const meta = {};
-  match[1].split('\n').forEach((line) => {
-    const colon = line.indexOf(':');
-    if (colon <= 0) return;
-
-    const key = line.slice(0, colon).trim();
-    let value = line.slice(colon + 1).trim();
-    if (value.startsWith('[') && value.endsWith(']')) {
-      value = value
-        .slice(1, -1)
-        .split(',')
-        .map((item) => item.trim().replace(/^['"]|['"]$/g, ''))
-        .filter(Boolean);
-    } else {
-      value = value.replace(/^['"]|['"]$/g, '');
-    }
-    meta[key] = value;
-  });
-
-  return { meta, body: match[2] };
-}
-
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
@@ -241,9 +213,8 @@ function editPost(path) {
   document.getElementById('post-summary').value = post?.summary || '';
 
   fetchJson(`/api/posts/${apiPath(path)}`).then((data) => {
-    const { meta, body } = parseFrontmatter(data.content);
-    document.getElementById('post-content').value = body.trimStart();
-    document.getElementById('post-cover-url').value = meta.cover || '';
+    document.getElementById('post-content').value = (data.body || '').trimStart();
+    document.getElementById('post-cover-url').value = data.meta?.cover || '';
   });
 
   switchView('editor');
@@ -1403,8 +1374,7 @@ async function deleteTag(tag) {
 async function updateTagsForPosts(postsToUpdate, transformTags) {
   for (const post of postsToUpdate) {
     const response = await fetchJson(`/api/posts/${apiPath(post.path)}`);
-    const { meta } = parseFrontmatter(response.content);
-    const tags = transformTags(Array.isArray(meta.tags) ? meta.tags : []);
+    const tags = transformTags(Array.isArray(response.meta?.tags) ? response.meta.tags : []);
     const frontmatter = response.content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)/);
     if (!frontmatter) continue;
 

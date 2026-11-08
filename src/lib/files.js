@@ -1,5 +1,14 @@
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync, statSync } from 'fs';
-import { join, relative, dirname } from 'path';
+/*
+文件读写。路径不能逃出指定目录，这一条只在这里判断。
+调用示例：
+  const files = readDirRecursive(dir)
+  writeTextFile(file, text)
+  const safe = resolveInside(root, targetPath)
+*/
+
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'path';
+import { fail } from './fail.js';
 
 export function readDirRecursive(dir) {
   const result = [];
@@ -7,7 +16,7 @@ export function readDirRecursive(dir) {
   for (const entry of entries) {
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
-      result.push(...readDirRecursive(fullPath));
+      result.push(...readDirRecursive(fullPath));       // 先走子目录，只收集文件
     } else {
       result.push(fullPath);
     }
@@ -15,17 +24,13 @@ export function readDirRecursive(dir) {
   return result;
 }
 
-export function readTextFile(path) {
-  return readFileSync(path, 'utf-8');
-}
-
 export function writeTextFile(path, content) {
-  mkdirSync(dirname(path), { recursive: true });
+  mkdirSync(dirname(path), { recursive: true });        // 目标文件夹还没有就先建好
   writeFileSync(path, content, 'utf-8');
 }
 
 export function copyDir(src, dest) {
-  if (!existsSync(src)) return;
+  if (!existsSync(src)) return;                         // 源目录不存在就跳过，不算构建失败
   const entries = readdirSync(src, { withFileTypes: true });
   mkdirSync(dest, { recursive: true });
   for (const entry of entries) {
@@ -40,8 +45,15 @@ export function copyDir(src, dest) {
 }
 
 export function cleanDir(dir) {
-  if (existsSync(dir)) {
-    rmSync(dir, { recursive: true });
+  if (existsSync(dir)) rmSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true });                  // 清掉以后仍然留一个空目录
+}
+
+export function resolveInside(root, targetPath = '') {
+  const fullPath = resolve(root, String(targetPath));
+  const rel = relative(resolve(root), fullPath);
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw fail(400, 'Invalid path');                    // 用户传来的路径不能爬出这个目录
   }
-  mkdirSync(dir, { recursive: true });
+  return fullPath;
 }

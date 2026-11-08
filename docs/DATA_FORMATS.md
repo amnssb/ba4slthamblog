@@ -49,12 +49,14 @@
   },
   "nav": [
     {
-      "label": "首页",
-      "url": "/"
+      "text": "首页",
+      "url": "/",
+      "icon": "🏠"
     },
     {
-      "label": "通联日志",
-      "url": "/logs/"
+      "text": "通联日志",
+      "url": "/logs/",
+      "icon": "📡"
     }
   ]
 }
@@ -100,7 +102,7 @@ title: 文章标题
 date: 2024-01-20
 tags: ["daily", "blog"]
 category: daily
-summary: "文章摘要（AI生成或手动填写）
+summary: "文章摘要（AI生成或手动填写）"
 cover: https://example.com/cover.jpg
 ---
 
@@ -128,7 +130,7 @@ title: Hello World
 date: 2024-01-20
 tags: ["daily", "blog"]
 category: daily
-summary: "这是我的第一篇博客文章，介绍我的博客。
+summary: "这是我的第一篇博客文章，介绍我的博客。"
 cover: https://example.com/cover.jpg
 ---
 

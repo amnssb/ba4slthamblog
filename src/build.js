@@ -1,43 +1,45 @@
-import { readFileSync, existsSync } from 'fs';
+/*
+构建入口：读文章、通联日志、友链和配置，写出 dist。数据怎么来的不在这里决定。
+调用：node src/build.js
+预览用的子路径：BLOG_BASE_PATH=/preview node src/build.js
+*/
+
 import { createHash } from 'crypto';
-import { join, dirname, relative } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
-import { readDirRecursive, writeTextFile, copyDir, cleanDir } from './lib/files.js';
+import { aboutFile } from './about.js';
+import { assertSiteConfig, publicConfig, readConfig } from './config.js';
+import { readFriends } from './friend.js';
+import { cleanDir, copyDir, readDirRecursive, writeTextFile } from './lib/files.js';
 import { processMarkdown } from './lib/markdown.js';
+import { renderManifest, renderServiceWorker } from './lib/pwa.js';
 import { generateRss } from './lib/rss.js';
 import { generateSearchIndex } from './lib/search.js';
 import { generateSitemap } from './lib/sitemap.js';
-import { truncate, normalizeBasePath, slugify, withBasePath } from './lib/utils.js';
-import { renderPost } from './templates/post.js';
-import { renderIndex } from './templates/index.js';
-import { renderTagIndex, renderAllTags } from './templates/tag.js';
+import { normalizeBasePath, slugify, withBasePath } from './lib/utils.js';
+import { readLogs } from './log.js';
+import { readPosts, tagMap } from './post.js';
 import { renderAbout } from './templates/about.js';
 import { renderFriends } from './templates/friends.js';
-import { renderLogsIndex, renderLogEntry } from './templates/logs.js';
+import { renderIndex } from './templates/index.js';
+import { renderLogEntry, renderLogsIndex } from './templates/logs.js';
+import { renderPost } from './templates/post.js';
+import { renderAllTags, renderTagIndex } from './templates/tag.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const CONTENT = join(ROOT, 'content');
 const PUBLIC = join(ROOT, 'public');
 const ASSETS = join(ROOT, 'src', 'assets');
 const DATA = join(ROOT, 'data');
 
-function readConfig() {
-  const config = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf-8'));
-  if (!config.title || typeof config.title !== 'string') {
-    throw new Error('config.json: title must be a non-empty string');
-  }
-  if (config.url && !/^https?:\/\//i.test(config.url)) {
-    throw new Error('config.json: url must start with http:// or https://');
-  }
-  // Remove sensitive data before passing to templates
-  const { ai, ...safeConfig } = config;
-  return safeConfig;
+function toPosixPath(filePath) {
+  return filePath.replace(/\\/g, '/');
 }
 
 function createBuildFingerprint(basePath, theme) {
-  const hash = createHash('sha256');
+  const hash = createHash('sha256');                   // 文件一变，页面里的 ?v= 就变，浏览器不会继续用旧样式
   const roots = [CONTENT, DATA, join(ROOT, 'src'), PUBLIC];
   const files = roots
     .flatMap((root) => existsSync(root) ? readDirRecursive(root) : [])
@@ -45,7 +47,7 @@ function createBuildFingerprint(basePath, theme) {
       join(ROOT, 'config.json'),
       join(ROOT, 'package.json'),
       join(ROOT, 'package-lock.json'),
-      join(ROOT, 'themes', theme, 'theme.json')
+      join(ROOT, 'themes', theme, 'theme.json'),
     )
     .filter((filePath) => existsSync(filePath))
     .sort();
@@ -58,223 +60,106 @@ function createBuildFingerprint(basePath, theme) {
   return hash.digest('hex').slice(0, 12);
 }
 
-function toPosixPath(filePath) {
-  return filePath.replace(/\\/g, '/');
+function loadSite() {
+  const saved = readConfig(ROOT);
+  assertSiteConfig(saved);                             // 站点没有标题就不能生成页面
+  const site = publicConfig(saved);                    // 页面里不带 ai 密钥
+  const basePath = normalizeBasePath(process.env.BLOG_BASE_PATH || '');
+  const theme = site.theme || 'anime-sakura';
+  const themeConfig = JSON.parse(readFileSync(join(ROOT, 'themes', theme, 'theme.json'), 'utf-8'));
+  return {
+    config: {
+      ...site,
+      __basePath: basePath,
+      __assetVersion: createBuildFingerprint(basePath, theme),
+    },
+    theme,
+    themeConfig,
+  };
 }
 
-function parseLogTimestamp(date, time = '') {
-  const normalizedTime = String(time || '').trim();
-  const utcMatch = normalizedTime.match(/^(\d{1,2}:\d{2})(?:\s*UTC)?$/i);
-  if (utcMatch) {
-    return new Date(`${date}T${utcMatch[1]}:00Z`).getTime();
-  }
-
-  const localMatch = normalizedTime.match(/^(\d{1,2}:\d{2})$/);
-  if (localMatch) {
-    return new Date(`${date}T${localMatch[1]}:00`).getTime();
-  }
-
-  return new Date(date).getTime();
-}
-
-function readLogs(logsRoot) {
-  const logFiles = existsSync(logsRoot)
-    ? readDirRecursive(logsRoot).filter((filePath) => filePath.endsWith('.json'))
-    : [];
-
-  return logFiles
-    .map((filePath) => {
-      const raw = JSON.parse(readFileSync(filePath, 'utf-8'));
-      const relPath = toPosixPath(relative(logsRoot, filePath)).replace(/\.json$/, '');
-      const slug = raw.slug || relPath || slugify(`${raw.date || ''}-${raw.callsign || raw.title || 'log'}`);
-      const title = raw.title || [raw.date, raw.callsign, raw.band, raw.mode].filter(Boolean).join(' ');
-      const url = `/logs/${slug}/`;
-      const excerpt = truncate(
-        (raw.notes || `${raw.frequency || ''} ${raw.mode || ''} ${raw.callsign || ''}`).replace(/\s+/g, ' ').trim(),
-        160
-      );
-
-      return {
-        ...raw,
-        title: title || '未命名通联日志',
-        slug,
-        url,
-        excerpt,
-        type: 'log',
-        timestamp: parseLogTimestamp(raw.date || '1970-01-01', raw.time || ''),
-      };
-    })
-    .sort((a, b) => b.timestamp - a.timestamp);
+function writePage(file, html) {
+  writeTextFile(join(DIST, file), html);
 }
 
 function build() {
-  const publicConfig = readConfig();
-  const basePath = normalizeBasePath(process.env.BLOG_BASE_PATH || '');
-  const theme = publicConfig.theme || 'anime-sakura';
-  const themeConfig = JSON.parse(readFileSync(join(ROOT, 'themes', theme, 'theme.json'), 'utf-8'));
-  const config = {
-    ...publicConfig,
-    __basePath: basePath,
-    __assetVersion: createBuildFingerprint(basePath, theme),
-  };
-  const postsRoot = join(CONTENT, 'posts');
-  const logsRoot = join(CONTENT, 'logs');
-  const hasAboutPage = existsSync(join(CONTENT, 'pages', 'about.md'));
+  const { config, theme, themeConfig } = loadSite();
+  const posts = readPosts(CONTENT);
+  const logs = readLogs(join(CONTENT, 'logs'));
+  const tags = tagMap(posts);
+  const aboutPath = aboutFile(CONTENT);
+  const hasAbout = existsSync(aboutPath);
+  const friends = readFriends(DATA);
 
   console.log('🌸 Building Ham Blog...');
   cleanDir(DIST);
+  copyDir(ASSETS, DIST);                               // 样式和脚本
+  copyDir(PUBLIC, DIST);                               // 图片和 favicon
 
-  // Copy assets
-  copyDir(ASSETS, DIST);
-  copyDir(PUBLIC, DIST);
+  console.log(`📄 Found ${posts.length} posts`);
+  console.log(`📡 Found ${logs.length} logs`);
 
-  // Read posts
-  const postFiles = existsSync(postsRoot)
-    ? readDirRecursive(postsRoot).filter(f => f.endsWith('.md'))
-    : [];
-  
-  const allPosts = postFiles
-    .map(filePath => {
-      const { meta, html, raw } = processMarkdown(filePath);
-      const relPath = toPosixPath(relative(postsRoot, filePath));
-      const slug = relPath.replace(/\.md$/, '');
-      const url = slug === 'index' ? '/' : `/${slug}/`;
-      const dirName = toPosixPath(dirname(slug));
-      const category = meta.category || (dirName === '.' ? 'default' : dirName);
-      
-      const excerpt = truncate(
-        raw.replace(/[#*`\[\]()>!_-]/g, '').replace(/\s+/g, ' ').trim(),
-        200
-      );
-
-      return {
-        title: meta.title || 'Untitled',
-        date: meta.date || '1970-01-01',
-        tags: Array.isArray(meta.tags) ? meta.tags.filter(Boolean) : meta.tags ? [meta.tags] : [],
-        category,
-        url,
-        html,
-        excerpt,
-        summary: meta.summary || null,
-        path: filePath,
-        cover: meta.cover || null,
-        coverOrientation: meta.coverOrientation || 'auto',
-      };
-    })
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  const allLogs = readLogs(logsRoot);
-
-  // Add prev/next links
-  allPosts.forEach((post, i) => {
-    post.prev = i < allPosts.length - 1 ? allPosts[i + 1] : null;
-    post.next = i > 0 ? allPosts[i - 1] : null;
-  });
-
-  console.log(`📄 Found ${allPosts.length} posts`);
-  console.log(`📡 Found ${allLogs.length} logs`);
-
-  // Build tag map
-  const tagMap = {};
-  for (const post of allPosts) {
-    const tags = [...post.tags];
-    if (post.category && !tags.includes(post.category)) {
-      tags.push(post.category);
-    }
-    for (const tag of tags) {
-      if (!tagMap[tag]) tagMap[tag] = [];
-      tagMap[tag].push(post);
-    }
-  }
-
-  // Generate index pages
+  // --- 首页 ---
   const perPage = Math.max(1, Number(config.postsPerPage) || 6);
-  const totalPages = Math.max(1, Math.ceil(allPosts.length / perPage));
-
+  const totalPages = Math.max(1, Math.ceil(posts.length / perPage));
   for (let page = 1; page <= totalPages; page++) {
-    const start = (page - 1) * perPage;
-    const pagePosts = allPosts.slice(start, start + perPage);
-    const html = renderIndex(config, pagePosts, page, totalPages, tagMap, theme);
-    const path = page === 1 ? 'index.html' : join('page', String(page), 'index.html');
-    writeTextFile(join(DIST, path), html);
+    const pagePosts = posts.slice((page - 1) * perPage, page * perPage);
+    const file = page === 1 ? 'index.html' : join('page', String(page), 'index.html');
+    writePage(file, renderIndex(config, pagePosts, page, totalPages, tags, theme));
   }
 
-  // Generate logs pages
-  const logsIndexHtml = renderLogsIndex(config, allLogs, theme);
-  writeTextFile(join(DIST, 'logs', 'index.html'), logsIndexHtml);
-
-  for (const log of allLogs) {
-    const html = renderLogEntry(config, log, theme);
-    writeTextFile(join(DIST, 'logs', log.slug, 'index.html'), html);
+  // --- 通联日志 ---
+  writePage(join('logs', 'index.html'), renderLogsIndex(config, logs, theme));
+  for (const log of logs) {
+    writePage(join('logs', log.slug, 'index.html'), renderLogEntry(config, log, theme));
   }
 
-  // Generate post pages
-  for (const post of allPosts) {
-    const html = renderPost(config, post, post.prev, post.next, theme);
-    writeTextFile(join(DIST, post.url.slice(1), 'index.html'), html);
+  // --- 文章和标签 ---
+  for (const post of posts) {
+    writePage(join(post.url.slice(1), 'index.html'), renderPost(config, post, post.prev, post.next, theme));
   }
-
-  // Generate tag pages
-  for (const tag of Object.keys(tagMap)) {
-    const html = renderTagIndex(config, tag, tagMap[tag], theme);
-    writeTextFile(join(DIST, 'tag', slugify(tag) || tag, 'index.html'), html);
+  for (const tag of Object.keys(tags)) {
+    writePage(join('tag', slugify(tag) || tag, 'index.html'), renderTagIndex(config, tag, tags[tag], theme));
   }
+  writePage(join('tags', 'index.html'), renderAllTags(config, tags, theme));
 
-  // Generate all tags page
-  const allTagsHtml = renderAllTags(config, tagMap, theme);
-  writeTextFile(join(DIST, 'tags', 'index.html'), allTagsHtml);
-
-  // Generate about page
-  const aboutPath = join(CONTENT, 'pages', 'about.md');
-  try {
-    const { html: contentHtml } = processMarkdown(aboutPath);
-    const html = renderAbout(config, contentHtml, theme);
-    writeTextFile(join(DIST, 'about', 'index.html'), html);
-  } catch (e) {
+  // --- 关于、友链 ---
+  if (!hasAbout) {
     console.log('⚠️ No about page found');
+  } else {
+    const { html } = processMarkdown(aboutPath);       // 文件在但解析失败就让构建停下来，不要当成没有这一页
+    writePage(join('about', 'index.html'), renderAbout(config, html, theme));
   }
 
-  // Generate friends page
-  const friendsPath = join(DATA, 'friends.json');
-  let friends = [];
-  try {
-    friends = JSON.parse(readFileSync(friendsPath, 'utf-8'));
-  } catch {}
-  
   if (config.features?.friends?.enabled !== false) {
-    const friendsHtml = renderFriends(config, friends, theme);
-    writeTextFile(join(DIST, 'friends', 'index.html'), friendsHtml);
+    writePage(join('friends', 'index.html'), renderFriends(config, friends, theme));
     console.log(`🔗 Generated friends page with ${friends.length} links`);
   }
 
-  // Generate RSS
-  const rssItems = [...allPosts, ...allLogs].sort((a, b) => {
+  // --- 订阅、索引、离线页 ---
+  const feed = [...posts, ...logs].sort((a, b) => {
     const left = a.timestamp || new Date(a.date).getTime();
     const right = b.timestamp || new Date(b.date).getTime();
     return right - left;
   });
-  const rss = generateRss(config, rssItems);
-  writeTextFile(join(DIST, 'rss.xml'), rss);
+  writePage('rss.xml', generateRss(config, feed));
 
-  // Generate sitemap
   const pages = [
     '/',
-    ...allPosts.map((p) => p.url),
+    ...posts.map((post) => post.url),
     '/logs/',
-    ...allLogs.map((log) => log.url),
-    ...Object.keys(tagMap).map((t) => `/tag/${slugify(t) || t}/`),
+    ...logs.map((log) => log.url),
+    ...Object.keys(tags).map((tag) => `/tag/${slugify(tag) || tag}/`),
     '/tags/',
-    ...(hasAboutPage ? ['/about/'] : []),
+    ...(hasAbout ? ['/about/'] : []),
     ...(config.features?.friends?.enabled !== false ? ['/friends/'] : []),
   ];
-  const sitemap = generateSitemap(config, pages);
-  writeTextFile(join(DIST, 'sitemap.xml'), sitemap);
+  writePage('sitemap.xml', generateSitemap(config, pages));
 
-  // Generate search index
   if (config.features?.search?.enabled !== false) {
     const searchItems = [
-      ...allPosts,
-      ...allLogs.map((log) => ({
+      ...posts,
+      ...logs.map((log) => ({
         title: log.title,
         url: log.url,
         date: log.date,
@@ -286,96 +171,25 @@ function build() {
       ...item,
       url: withBasePath(item.url, config.__basePath),
     }));
-    const searchIndex = generateSearchIndex(searchItems);
-    writeTextFile(join(DIST, 'search-index.json'), searchIndex);
+    writePage('search-index.json', generateSearchIndex(searchItems));
   }
 
-  // Generate manifest.json for PWA
   if (config.features?.pwa?.enabled !== false) {
-    const cacheName = `ham-blog-${config.__assetVersion}`;
-    const assetVersion = `?v=${config.__assetVersion}`;
-    const rootUrl = `${config.__basePath || ''}/`;
-    const coreAssets = [
-      rootUrl,
-      `${config.__basePath || ''}/style.css${assetVersion}`,
-      `${config.__basePath || ''}/script.js${assetVersion}`,
-      `${config.__basePath || ''}/manifest.json${assetVersion}`,
-      ...(config.features?.search?.enabled !== false ? [`${config.__basePath || ''}/search-index.json${assetVersion}`] : []),
-    ];
-    const manifest = {
-      name: config.title,
-      short_name: config.title,
-      description: config.description,
-      start_url: rootUrl,
-      scope: rootUrl,
-      display: 'standalone',
-      background_color: themeConfig.colors?.background || '#f5f7f8',
-      theme_color: themeConfig.colors?.primary || '#e64c8c',
-      icons: [
-        { src: `${config.__basePath || ''}/favicon.svg`, sizes: 'any', type: 'image/svg+xml' }
-      ]
-    };
-    writeTextFile(join(DIST, 'manifest.json'), JSON.stringify(manifest, null, 2));
-    writeTextFile(join(DIST, 'service-worker.js'), `const CACHE_NAME = '${cacheName}';
-const CORE_ASSETS = ${JSON.stringify(coreAssets)};
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)));
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(
-    keys.filter((key) => key.startsWith('ham-blog-') && key !== CACHE_NAME).map((key) => caches.delete(key))
-  )));
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin) return;
-
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('${rootUrl}')))
-    );
-    return;
-  }
-
-  event.respondWith(caches.match(event.request).then((cached) => {
-    const network = fetch(event.request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      })
-      .catch(() => cached);
-    return cached || network;
-  }));
-});
-`);
+    writePage('manifest.json', JSON.stringify(renderManifest(config, themeConfig), null, 2));
+    writePage('service-worker.js', renderServiceWorker(config));
   }
 
   console.log('✅ Build complete!');
   console.log(`📁 Output: ${DIST}`);
-  console.log(`📝 ${allPosts.length} posts`);
-  console.log(`📡 ${allLogs.length} logs`);
-  console.log(`🏷️ ${Object.keys(tagMap).length} tags`);
+  console.log(`📝 ${posts.length} posts`);
+  console.log(`📡 ${logs.length} logs`);
+  console.log(`🏷️ ${Object.keys(tags).length} tags`);
   console.log(`🔗 ${friends.length} friends`);
 }
 
 try {
   build();
-} catch (err) {
-  console.error('❌ Build failed:', err);
+} catch (error) {
+  console.error('❌ Build failed:', error);
   process.exit(1);
 }

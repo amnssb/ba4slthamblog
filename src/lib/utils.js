@@ -30,10 +30,6 @@ export function truncate(str, len = 160) {
   return value.slice(0, len) + '...';
 }
 
-export function getTagFromCategory(category) {
-  return category || 'default';
-}
-
 export function normalizeBasePath(basePath = '') {
   if (!basePath || basePath === '/') return '';
   const normalized = `/${String(basePath).replace(/^\/+|\/+$/g, '')}`;

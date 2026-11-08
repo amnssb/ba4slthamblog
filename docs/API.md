@@ -54,15 +54,19 @@
 ```json
 {
   "content": "---\ntitle: Hello World\n---\n文章内容...",
-  "path": "posts/daily/hello-world.md"
+  "path": "posts/daily/hello-world.md",
+  "body": "文章内容...",
+  "meta": { "title": "Hello World", "tags": ["daily"] }
 }
 ```
+
+`body` 和 `meta` 由同一份 frontmatter 解析得到。后台编辑器直接用这两项，不再自己拆 Markdown。
 
 ### Export Post - 导出文章
 
 **Endpoint**: `GET /api/posts/*/export`
 
-**Description**: 导出文章为 JSON 格式，用于跨站同步
+**Description**: 导出文章为 JSON 格式，用于跨站同步。`source.url` 由 `/posts/` 加上请求路径拼成，不是站点页面地址。
 
 **Response**:
 
@@ -70,7 +74,7 @@
 {
   "source": {
     "site": "ham-radio-blog",
-    "url": "/posts/daily/hello-world",
+    "url": "/posts/posts/daily/hello-world",
     "exportedAt": "2024-01-20T10:30:00.000Z"
   },
   "post": {
@@ -213,8 +217,8 @@
     "customUrl": ""
   },
   "nav": [
-    { "label": "首页", "url": "/" },
-    { "label": "通联日志", "url": "/logs/" }
+    { "text": "首页", "url": "/", "icon": "🏠" },
+    { "text": "通联日志", "url": "/logs/", "icon": "📡" }
   ]
 }
 ```

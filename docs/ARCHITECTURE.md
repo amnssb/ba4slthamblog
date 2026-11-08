@@ -79,19 +79,27 @@ This blog system uses two components:
 ba4slthamblog/
 │
 ├── admin/                              # Admin Backend - 管理后台
-│   ├── server.js                      # Express server
+│   ├── server.js                      # HTTP 入口：检查请求，调用 src 里的主体
+│   ├── ai.js                          # 摘要接口
 │   ├── package.json
 │   └── public/                        # Management UI
 │       ├── index.html
 │       ├── app.js                    # Frontend JS
 │       └── style.css
 │
-├── src/                                # Site Generator - 站点生成器
-│   ├── build.js                      # Build script
-│   ├── lib/                         # Library modules
-│   │   ├── markdown.js             # Markdown parser
+├── src/                                # 站点生成器。主体平铺在这一层
+│   ├── build.js                      # 入口：读主体，写 dist
+│   ├── post.js                       # 文章：扫描、分类、排序、导出
+│   ├── log.js                        # 通联日志
+│   ├── config.js                     # config.json，页面里不带密钥
+│   ├── friend.js                     # 友链
+│   ├── about.js                      # 关于页
+│   ├── lib/                         # 没有业务名词的小工具
+│   │   ├── markdown.js             # Markdown 和 frontmatter，全项目只此一份
 │   │   ├── utils.js                # Utility functions
-│   │   ├── files.js                # File utilities
+│   │   ├── files.js                # 读写文件，并挡住逃出目录的路径
+│   │   ├── fail.js                 # 带状态码的错误
+│   │   ├── pwa.js                  # manifest 和 service worker
 │   │   ├── rss.js                  # RSS generator
 │   │   ├── sitemap.js              # Sitemap generator
 │   │   └── search.js               # Search indexer
@@ -142,22 +150,19 @@ ba4slthamblog/
 
 ## Core Modules - 核心模块
 
+### 为什么是这个形状
+
+站点和后台是两扇门，读写的是同一批文件。文章、通联日志、配置、友链、关于页各自一个文件，两边都调用它。分类、排序、frontmatter 不在第二个地方再写一遍。
+
+页面模板留在 `src/templates/`。改版式和改一篇文章不是同一件事。首页、文章、标签、日志、友链、关于这几种页面长得不一样，数量也不增加，所以构建入口里直接写出来，不做扫描。
+
+会不断增加的是文章和通联日志。加一篇就是往 `content/posts/` 或 `content/logs/` 放一个文件，不用改代码。
+
+`content/`、`data/`、`config.json` 留在仓库里。它们是要部署的站点本身，不是程序重装以后还该单独留下来的用户数据。密钥不进页面：构建会丢掉整个 `ai` 段，后台接口只返回有没有密钥。密钥放环境变量 `AI_API_KEY`。
+
 ### Server Modules (admin/server.js)
 
-The server is structured into these main sections:
-
-服务器被组织成以下主要部分：
-
-| Section | Description - 说明 |
-|---------|----------------|
-| `Configuration` | Path and port setup - 路径和端口设置 |
-| `File Uploads` | Multer config for images and favicon - 文件上传配置 |
-| `WebSocket Broadcast` | Live preview broadcast - 实时预览广播 |
-| `Utility Functions` | `resolveContentPath`, `readJsonSafely`, etc. - 工具函数 |
-| `Frontmatter Parser` | Parses YAML from Markdown - Frontmatter 解析器 |
-| `File Watcher` | Chokidar to watch content files - 文件监听 |
-| `AI API Caller` | Makes requests to OpenAI-compatible APIs - AI API 调用 |
-| `Routes` | API endpoints - API 路由 |
+`admin/server.js` 只做入口：中间件、静态文件、上传、WebSocket，然后检查请求并调用 `src/` 里的主体。摘要请求在 `admin/ai.js`。错误在这个入口分成用户能改的（400、404）和程序故障（500），两边都带原因。
 
 ### Static Site Generator (src/build.js)
 
@@ -273,13 +278,13 @@ All routes are defined in `admin/server.js`.
 
 ## Security Considerations - 安全注意事项
 
-1. **Config File Protection**: `config.json` added to `.gitignore`
-2. **Path Validation**: `resolveContentPath` and `resolveLogsPath` prevent directory traversal attacks
+1. **Config File**: `config.json` 是站点定义，留在仓库里。API 密钥放 `AI_API_KEY`，不要写进这个文件
+2. **Path Validation**: `resolveInside` 挡住爬出内容目录的路径
 3. **Image Uploads**: Check file extensions and MIME types
 4. **Frontend Does NOT Have Access**: No API keys exposed to frontend
 
-1. **配置文件保护**：`config.json` 已添加到 `.gitignore`
-2. **路径验证**：`resolveContentPath` 和 `resolveLogsPath` 防止目录遍历攻击
+1. **配置文件**：`config.json` 是站点定义，留在仓库里。API 密钥放 `AI_API_KEY`
+2. **路径验证**：`resolveInside` 防止目录遍历
 3. **图片上传**：检查文件扩展名和 MIME 类型
 4. **前端无法访问**：API 密钥不会暴露给前端
 
@@ -287,14 +292,22 @@ All routes are defined in `admin/server.js`.
 
 ## Extensibility - 可扩展性
 
+### Adding a Post or Log - 加一篇文章或一条日志
+
+往 `content/posts/{分类}/{slug}.md` 或 `content/logs/{slug}.json` 放文件。构建和后台都会扫到，不用登记。
+
 ### Adding a New Page - 添加新页面
+
+首页、文章页、标签页这几种页面不是同一类东西，所以仍然要动两处：
 
 1. Create template in `src/templates/{page-name}.js`
 2. Add generation in `src/build.js`
-3. Update config/navigation
+
+导航文字在 `config.json` 的 `nav` 里改，字段是 `text`、`url`、`icon`。
 
 ### Adding a New API - 添加新 API
 
-1. Add route handler in `admin/server.js`
-2. Add fetch call in `admin/public/app.js`
-3. Add UI in `admin/public/index.html`
+1. 如果读写的是已有内容，调用 `src/` 里那个主体，不要再解析一遍
+2. Add route handler in `admin/server.js`
+3. Add fetch call in `admin/public/app.js`
+4. Add UI in `admin/public/index.html`

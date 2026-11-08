@@ -92,10 +92,15 @@ ba4slthamblog/
 │   ├── logs/                # Ham logs - 通联日志
 │   └── pages/               # Pages - 页面
 │
-├── src/                      # Static site generator - 静态站点生成
-│   ├── build.js             # Build script
-│   ├── templates/           # Templates
-│   ├── lib/                 # Libraries
+├── src/                      # 站点生成器
+│   ├── build.js             # 构建入口
+│   ├── post.js              # 文章
+│   ├── log.js               # 通联日志
+│   ├── config.js            # 站点配置
+│   ├── friend.js            # 友链
+│   ├── about.js             # 关于页
+│   ├── templates/           # 页面模板
+│   ├── lib/                 # 通用小工具
 │   └── assets/              # CSS/JS assets
 │
 ├── themes/                   # Theme files - 主题文件

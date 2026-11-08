@@ -21,7 +21,7 @@ GET /api/posts/{文章路径}/export
 
 例如：
 ```
-GET /api/posts/daily/hello-world.md/export
+GET /api/posts/posts/daily/hello-world.md/export
 ```
 
 ## 导出文件格式
@@ -32,7 +32,7 @@ GET /api/posts/daily/hello-world.md/export
 {
   "source": {
     "site": "ham-radio-blog",
-    "url": "/posts/daily/hello-world",
+    "url": "/posts/posts/daily/hello-world",
     "exportedAt": "2024-01-20T10:30:00.000Z"
   },
   "post": {
@@ -44,7 +44,7 @@ GET /api/posts/daily/hello-world.md/export
     "cover": "https://example.com/cover.jpg",
     "content": "原始 Markdown 内容",
     "html": "渲染后的 HTML",
-    "slug": "daily/hello-world"
+    "slug": "posts/daily/hello-world"
   },
   "meta": {
     "version": "1.0",
