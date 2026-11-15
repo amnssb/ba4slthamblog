@@ -64,6 +64,9 @@
     "category": "Announcements",
     "categoryId": "DIC_kwDOSIrJhM4C7Wxn"
   },
+  "qslShowcase": {
+    "siteUrl": "https://qsl.ba4slt.cn"
+  },
   "ai": {
     "provider": "custom",
     "apiKey": "",

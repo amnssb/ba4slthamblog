@@ -11,6 +11,8 @@
 
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { fail } from './lib/fail.js';
+import { showcaseOrigin } from './showcase.js';
 
 export function readConfig(root) {
   return JSON.parse(readFileSync(join(root, 'config.json'), 'utf-8'));
@@ -26,6 +28,15 @@ export function assertSiteConfig(config) {
   }
   if (config.url && !/^https?:\/\//i.test(config.url)) {
     throw new Error('config.json: url must start with http:// or https://');
+  }
+  if (config.qslShowcase != null) {
+    if (typeof config.qslShowcase !== 'object' || Array.isArray(config.qslShowcase)) {
+      throw new Error('config.json: qslShowcase must be an object');
+    }
+    const siteUrl = config.qslShowcase.siteUrl;
+    if (siteUrl != null && String(siteUrl).trim() && !showcaseOrigin(siteUrl)) {
+      throw new Error('config.json: qslShowcase.siteUrl must be an http(s) URL');
+    }
   }
 }
 
@@ -55,5 +66,19 @@ export function mergeConfig(existing, incoming) {
     }
     delete next.ai.hasApiKey;                  // 这是返回给界面的标记，不写回文件
   }
+  if (Object.prototype.hasOwnProperty.call(incoming, 'qslShowcase')) {
+    next.qslShowcase = normalizeShowcase(existing.qslShowcase, incoming.qslShowcase);
+  }
   return next;
+}
+
+function normalizeShowcase(existing, incoming) {
+  if (incoming == null) return { ...(existing || {}), siteUrl: '' };
+  if (typeof incoming !== 'object' || Array.isArray(incoming)) {
+    throw fail(400, 'qslShowcase must be an object');
+  }
+  const siteUrl = String(incoming.siteUrl ?? '').trim();
+  const origin = siteUrl ? showcaseOrigin(siteUrl) : '';
+  if (siteUrl && !origin) throw fail(400, 'qslShowcase.siteUrl must be an http(s) URL');
+  return { ...(existing || {}), ...incoming, siteUrl: origin };
 }

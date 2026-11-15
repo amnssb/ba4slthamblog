@@ -92,6 +92,7 @@ ba4slthamblog/
 │   ├── post.js                       # 文章：扫描、分类、排序、导出
 │   ├── log.js                        # 通联日志
 │   ├── config.js                     # config.json，页面里不带密钥
+│   ├── showcase.js                   # hamqsl 对外展示：地址、状态、页面片段
 │   ├── friend.js                     # 友链
 │   ├── about.js                      # 关于页
 │   ├── lib/                         # 没有业务名词的小工具
@@ -185,6 +186,8 @@ Build pipeline:
 6. Generate sitemap
 7. Copy assets
 ```
+
+QSL 对外展示不在构建时抓取。`qslShowcase.siteUrl` 为空就不输出组件，也不会请求别的主机。有地址时页面只放挂载点，浏览器再去读公开 JSON。插件未开启（404）不重试；5xx 才退避重试，并且不把失败画成一组 0。
 
 ---
 

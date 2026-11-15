@@ -1,5 +1,6 @@
 import { renderLayout } from './layout.js';
 import { escapeHtml, safeUrl } from '../lib/utils.js';
+import { renderShowcaseWidget } from '../showcase.js';
 
 export function renderAbout(config, html, theme = 'anime-sakura') {
   const callsignInfo = config.callsign
@@ -37,6 +38,7 @@ ${html}
 
       ${callsignInfo}
     </div>
+    ${renderShowcaseWidget(config, { variant: 'about' })}
   `;
 
   return renderLayout(config, {

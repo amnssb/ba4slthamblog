@@ -788,6 +788,8 @@ async function loadSettings() {
   document.getElementById('site-callsign').value = config.callsign || '';
   document.getElementById('site-email').value = config.email || '';
   document.getElementById('site-url').value = config.url || '';
+  const qslSiteUrl = document.getElementById('qsl-site-url');
+  if (qslSiteUrl) qslSiteUrl.value = config.qslShowcase?.siteUrl || '';
   document.getElementById('site-perpage').value = config.postsPerPage || 10;
   
   // Check favicon
@@ -859,14 +861,24 @@ function initSettings() {
     config.email = document.getElementById('site-email').value;
     config.url = document.getElementById('site-url').value;
     config.postsPerPage = parseInt(document.getElementById('site-perpage').value, 10);
+    const qslSiteUrl = document.getElementById('qsl-site-url');
+    if (qslSiteUrl) {
+      config.qslShowcase = {
+        ...(config.qslShowcase || {}),
+        siteUrl: qslSiteUrl.value.trim(),
+      };
+    }
 
-    await fetchJson('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
-
-    showToast('配置已保存', 'success');
+    try {
+      await fetchJson('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      showToast('配置已保存', 'success');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
   });
   
   // Favicon management
