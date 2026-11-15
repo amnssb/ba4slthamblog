@@ -199,6 +199,9 @@
   "author": "BA4SLT",
   "callsign": "BA4SLT",
   "email": "email@example.com",
+  "qslShowcase": {
+    "siteUrl": "https://qsl.example.com"
+  },
   "url": "https://your-blog.com",
   "postsPerPage": 10,
   "favicon": "https://example.com/favicon.ico",

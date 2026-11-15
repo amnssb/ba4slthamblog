@@ -436,6 +436,13 @@ body {
   color: var(--text-muted);
 }
 
+.field-help {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

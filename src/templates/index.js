@@ -1,5 +1,6 @@
 import { renderLayout } from './layout.js';
 import { escapeHtml, formatDate, safeUrl, slugify, truncate, withBasePath } from '../lib/utils.js';
+import { renderShowcaseWidget } from '../showcase.js';
 
 export function renderIndex(config, posts, pageNum, totalPages, tagMap, theme = 'anime-sakura') {
   const basePath = config.__basePath || '';
@@ -89,10 +90,13 @@ ${postsHtml}
         </div>
 ${paginationHtml}
       </section>
-      <aside class="tags-section">
-        <p class="eyebrow">EXPLORE</p>
-        <h2>热门标签</h2>
-        <div class="tags-cloud">${tagsCloud}</div>
+      <aside class="home-aside">
+        ${renderShowcaseWidget(config, { variant: 'home' })}
+        <div class="tags-section">
+          <p class="eyebrow">EXPLORE</p>
+          <h2>热门标签</h2>
+          <div class="tags-cloud">${tagsCloud}</div>
+        </div>
       </aside>
     </div>
   `;

@@ -20,6 +20,7 @@ import { generateSitemap } from './lib/sitemap.js';
 import { normalizeBasePath, slugify, withBasePath } from './lib/utils.js';
 import { readLogs } from './log.js';
 import { readPosts, tagMap } from './post.js';
+import { showcaseClientSource } from './showcase.js';
 import { renderAbout } from './templates/about.js';
 import { renderFriends } from './templates/friends.js';
 import { renderIndex } from './templates/index.js';
@@ -95,6 +96,8 @@ function build() {
   cleanDir(DIST);
   copyDir(ASSETS, DIST);                               // 样式和脚本
   copyDir(PUBLIC, DIST);                               // 图片和 favicon
+  writeTextFile(join(DIST, 'showcase.js'), readFileSync(join(ROOT, 'src', 'showcase.js'), 'utf-8'));
+  writeTextFile(join(DIST, 'showcase-client.js'), showcaseClientSource(config.__assetVersion));
 
   console.log(`📄 Found ${posts.length} posts`);
   console.log(`📡 Found ${logs.length} logs`);

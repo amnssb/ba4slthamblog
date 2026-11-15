@@ -26,6 +26,9 @@
   "author": "BA4SLT",
   "callsign": "BA4SLT",
   "email": "your@email.com",
+  "qslShowcase": {
+    "siteUrl": "https://qsl.example.com"
+  },
   "url": "https://your-blog.com",
   "postsPerPage": 10,
   "favicon": "https://example.com/favicon.ico",
@@ -72,6 +75,8 @@
 | `author` | string | no | Author name - 作者名称 |
 | `callsign` | string | no | Callsign - 呼号 |
 | `email` | string | no | Email - 邮箱 |
+| `qslShowcase` | object | no | hamqsl 对外展示。公开接口，不要写密钥 |
+| `qslShowcase.siteUrl` | string | no | QSL 站点地址，例如 `https://qsl.ba4slt.cn`。留空则不显示、不请求 |
 | `url` | string | no | Site URL - 网站链接 |
 | `postsPerPage` | number | no | Posts per page - 每页文章数 |
 | `favicon` | string | no | Favicon URL - Favicon 链接 |

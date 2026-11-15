@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { escapeHtml, safeUrl, withBasePath } from '../lib/utils.js';
+import { showcaseOrigin } from '../showcase.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -131,6 +132,18 @@ export function renderLayout(config, {
   const safeTheme = escapeHtml(theme);
   const safeFavicon = config.favicon ? safeUrl(config.favicon, basePath) : withBasePath('/favicon.svg', basePath);
   const themeVars = buildThemeVars(themeConfig);
+  const qslOrigin = showcaseOrigin(config.qslShowcase?.siteUrl);
+  const connectSrc = [
+    "'self'",
+    'https://api.openai.com',
+    'https://api.deepseek.com',
+    'https://api.moonshot.cn',
+    'https://api.siliconflow.cn',
+    qslOrigin,
+  ].filter(Boolean).join(' ');
+  const imgSrc = ["'self'", 'https:', 'data:', qslOrigin && qslOrigin.startsWith('http://') ? qslOrigin : '']
+    .filter(Boolean)
+    .join(' ');
 
   return `<!DOCTYPE html>
   <html lang="${escapeHtml(config.language || 'zh-CN')}">
@@ -157,7 +170,7 @@ export function renderLayout(config, {
   <link rel="alternate" type="application/rss+xml" href="${withBasePath('/rss.xml', basePath)}">
   <link rel="stylesheet" href="${assetUrl('/style.css')}">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.moonshot.cn https://api.siliconflow.cn; frame-src https://giscus.app;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src ${imgSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; connect-src ${connectSrc}; frame-src https://giscus.app;">
 ${themeVars}
   <script>
     try {
@@ -227,6 +240,7 @@ ${content}
     </svg>
   </button>
 
+  ${qslOrigin ? `<script type="module" src="${assetUrl('/showcase-client.js')}"></script>` : ''}
   <script src="${assetUrl('/script.js')}" defer></script>
 </body>
 </html>`;

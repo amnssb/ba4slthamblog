@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { renderAbout } from '../src/templates/about.js';
 import { renderIndex } from '../src/templates/index.js';
 import { renderLayout } from '../src/templates/layout.js';
 import { renderPost } from '../src/templates/post.js';
@@ -71,4 +72,22 @@ test('home covers prioritize the first image and lazy-load the rest', () => {
   assert.match(html, /first\.jpg" alt="" loading="eager" fetchpriority="high" decoding="async"/);
   assert.match(html, /second\.jpg" alt="" loading="lazy" decoding="async"/);
   assert.match(html, /data-cover-orientation="landscape"/);
+  assert.doesNotMatch(html, /data-qsl-showcase|qsl\.ba4slt\.cn/);
+});
+
+test('showcase mount is allowed to reach only the configured QSL origin', () => {
+  const withShowcase = {
+    ...config,
+    qslShowcase: { siteUrl: 'https://qsl.ba4slt.cn/showcase/' },
+  };
+  const home = renderIndex(withShowcase, [], 1, 1, {}, 'anime-sakura');
+  const about = renderAbout(withShowcase, '<p>About</p>', 'anime-sakura');
+
+  assert.match(home, /connect-src 'self' https:\/\/api\.openai\.com https:\/\/api\.deepseek\.com https:\/\/api\.moonshot\.cn https:\/\/api\.siliconflow\.cn https:\/\/qsl\.ba4slt\.cn;/);
+  assert.match(home, /src="\/radio\/showcase-client\.js\?v=abc123"/);
+  assert.match(home, /data-variant="home"/);
+  assert.match(about, /data-variant="about"/);
+  assert.match(about, /业余无线电信息/);
+  assert.doesNotMatch(home, /iframe/i);
+  assert.doesNotMatch(renderLayout(config, { title: 'Logs', content: '<p>Content</p>', pathname: '/logs/' }), /showcase-client\.js|qsl\.ba4slt\.cn/);
 });
