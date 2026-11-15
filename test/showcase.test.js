@@ -51,6 +51,7 @@ function fakeSection(variant = 'about') {
     'data-site': 'https://qsl.ba4slt.cn/',
     'data-limit': '8',
     'data-variant': variant,
+    'data-callsign': 'BA4SLT',
   };
   return {
     hidden: variant === 'home',
@@ -112,9 +113,9 @@ test('plugin-off and server failures do not become an empty station', () => {
   const offHtml = renderShowcaseBody(off, urls, 'about');
   const downHtml = renderShowcaseBody(down, urls, 'about');
   assert.match(offHtml, /对外展示未开启/);
-  assert.match(downHtml, /暂时读不到/);
-  assert.doesNotMatch(offHtml, /qsl-showcase-count|badge\.svg|iframe/i);
-  assert.doesNotMatch(downHtml, /qsl-showcase-count|badge\.svg|iframe/i);
+  assert.match(downHtml, /暂时无法加载/);
+  assert.doesNotMatch(offHtml, /qsl-showcase-stat|badge\.svg|iframe/i);
+  assert.doesNotMatch(downHtml, /qsl-showcase-stat|badge\.svg|iframe/i);
 });
 
 test('a live payload escapes text, drops private fields, and prefixes card images', () => {
@@ -127,30 +128,63 @@ test('a live payload escapes text, drops private fields, and prefixes card image
 
   const html = renderShowcaseBody(result, showcaseUrls('https://qsl.ba4slt.cn'), 'about');
   assert.match(html, /https:\/\/qsl\.ba4slt\.cn\/uploads\/ab12\.png/);
-  assert.match(html, /https:\/\/qsl\.ba4slt\.cn\/api\/public\/ext\/showcase\/badge\.svg/);
-  assert.match(html, /https:\/\/qsl\.ba4slt\.cn\/showcase/);
+  assert.match(html, /https:\/\/qsl\.ba4slt\.cn\/apply/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.match(html, /&lt;b&gt;bad&lt;\/b&gt;/);
-  assert.match(html, /A&amp;B/);
   assert.match(html, /src="https:\/\/qsl\.ba4slt\.cn\/uploads\/ab12\.png"/);
   assert.match(html, />0</);
-  assert.match(html, /alt="&lt;img src=x onerror=alert\(1\)&gt; 的 QSL 展示"/);
-  assert.doesNotMatch(html, /src="\/uploads\/|<script|<b>bad<\/b>|secret@example\.com|secret road/i);
-  assert.doesNotMatch(html, /iframe/i);
+  assert.match(html, /alt="&lt;img src=x onerror=alert\(1\)&gt; QSL 卡面：&lt;b&gt;bad&lt;\/b&gt;"/);
+  assert.match(html, /最近动态/);
+  assert.doesNotMatch(html, /src="\/uploads\/|<script|<b>bad<\/b>|secret@example\.com|secret road|A&amp;B|iframe/i);
 });
 
 test('an empty showcase URL renders nothing and does not name a host', () => {
   assert.equal(renderShowcaseWidget({}), '');
   assert.equal(renderShowcaseWidget({ qslShowcase: { siteUrl: '   ' } }), '');
-  const home = renderShowcaseWidget({ qslShowcase: { siteUrl: 'https://qsl.ba4slt.cn/' } }, { variant: 'home' });
-  const about = renderShowcaseWidget({ qslShowcase: { siteUrl: 'https://qsl.ba4slt.cn/' } }, { variant: 'about' });
-  assert.match(home, /hidden/);
+  const station = { callsign: 'BA4SLT', qslShowcase: { siteUrl: 'https://qsl.ba4slt.cn/' } };
+  const home = renderShowcaseWidget(station, { variant: 'home' });
+  const about = renderShowcaseWidget(station, { variant: 'about' });
+  assert.match(home, /qsl-showcase-skel-hero/);
   assert.match(home, /data-site="https:\/\/qsl\.ba4slt\.cn"/);
   assert.match(home, /data-variant="home"/);
+  assert.match(home, /\/apply/);
+  assert.doesNotMatch(home, / hidden/);
   assert.match(about, /data-variant="about"/);
+  assert.match(about, /data-callsign="BA4SLT"/);
+  assert.match(about, /暂时无法加载/);
   assert.doesNotMatch(about, / hidden/);
   assert.doesNotMatch(`${home}${about}`, /iframe|example\.invalid/i);
+});
+
+test('empty station, empty recent, and a missing card file still leave counts, badge, and a named placeholder', () => {
+  const result = interpretShowcase(200, {
+    code: 'QSL-0000',
+    data: {
+      cards: [{ card_version: 'luotianyi', image_path: '/uploads/46953a5c5e25352cc9f6af28.jpg' }],
+      counts: { cards_received: 2, cards_sent: 4, cards_signed: 3, qso: 0 },
+      recent: [],
+      station: { call_sign: '', name: '', name_en: '' },
+    },
+  });
+  const urls = showcaseUrls('https://qsl.ba4slt.cn');
+  const html = renderShowcaseBody(result, urls, 'about', { fallbackCall: 'BA4SLT' });
+
+  assert.equal(cardImageUrl(urls.origin, result.data.cards[0].image_path), 'https://qsl.ba4slt.cn/uploads/46953a5c5e25352cc9f6af28.jpg');
+  assert.match(html, /src="https:\/\/qsl\.ba4slt\.cn\/uploads\/46953a5c5e25352cc9f6af28\.jpg"/);
+  assert.match(html, /alt="BA4SLT QSL 卡面：luotianyi"/);
+  assert.match(html, /width="1080" height="720"/);
+  assert.match(html, /loading="lazy" decoding="async"/);
+  assert.match(html, /呼号 BA4SLT · OM93nn/);
+  assert.match(html, /qsl-showcase-placeholder[\s\S]*BA4SLT[\s\S]*QSL/);
+  assert.match(html, />4</);
+  assert.match(html, />3</);
+  assert.match(html, />2</);
+  assert.match(html, /已发出/);
+  assert.match(html, /已签收/);
+  assert.match(html, /已收到/);
+  assert.match(html, /https:\/\/qsl\.ba4slt\.cn\/apply/);
+  assert.doesNotMatch(html, /最近动态|最近通联|qsl-showcase-thumb|iframe/i);
 });
 
 test('404 is not retried and 503 backs off no faster than 60 seconds', async () => {
@@ -177,8 +211,8 @@ test('404 is not retried and 503 backs off no faster than 60 seconds', async () 
   assert.equal(calls, 1);
   assert.equal(scheduled.length, 1);
   assert.ok(scheduled[0].ms >= 60_000);
-  assert.match(section.body.innerHTML, /暂时读不到/);
-  assert.doesNotMatch(section.body.innerHTML, /qsl-showcase-count/);
+  assert.match(section.body.innerHTML, /暂时无法加载/);
+  assert.doesNotMatch(section.body.innerHTML, /qsl-showcase-stat/);
   assert.equal(retryDelayMs(jsonResponse(503, {}, { 'retry-after': '120' }), 0), 120_000);
 
   const home = fakeSection('home');
@@ -203,8 +237,83 @@ test('404 is not retried and 503 backs off no faster than 60 seconds', async () 
     schedule: () => {},
   });
   assert.equal(ready.hidden, false);
-  assert.match(ready.body.innerHTML, /qsl-showcase-count/);
+  assert.match(ready.body.innerHTML, /qsl-showcase-stat/);
+  assert.match(ready.body.innerHTML, /qsl-showcase-placeholder/);
   assert.match(ready.body.innerHTML, />0</);
+
+  const failed = fakeSection('about');
+  await refreshShowcase(failed, {
+    fetchImpl: async () => { throw new Error('offline'); },
+    schedule: () => {},
+  });
+  assert.match(failed.body.innerHTML, /暂时无法加载/);
+  assert.doesNotMatch(failed.body.innerHTML, /正在读取|qsl-showcase-stat|iframe/i);
+
+  const live = {
+    code: 'QSL-0000',
+    data: {
+      cards: [{ card_version: 'luotianyi', image_path: '/uploads/46953a5c5e25352cc9f6af28.jpg' }],
+      counts: { cards_received: 2, cards_sent: 4, cards_signed: 3, qso: 0 },
+      recent: [],
+      station: { call_sign: '', name: '', name_en: '' },
+    },
+  };
+  const shown = fakeSection('home');
+  await refreshShowcase(shown, {
+    fetchImpl: async () => jsonResponse(200, live),
+    schedule: () => {},
+  });
+  assert.equal(shown.hidden, false);
+  assert.match(shown.body.innerHTML, /luotianyi/);
+  assert.match(shown.body.innerHTML, /https:\/\/qsl\.ba4slt\.cn\/uploads\/46953a5c5e25352cc9f6af28\.jpg/);
+  assert.match(shown.body.innerHTML, /呼号 BA4SLT · OM93nn/);
+  assert.doesNotMatch(shown.body.innerHTML, /最近动态|iframe/i);
+
+  const empty = fakeSection('home');
+  await refreshShowcase(empty, {
+    fetchImpl: async () => jsonResponse(200, {
+      code: 'QSL-0000',
+      data: {
+        station: { call_sign: '', name: '', name_en: '' },
+        counts: { qso: 0, cards_sent: 0, cards_signed: 0, cards_received: 0 },
+        recent: [],
+        cards: [],
+      },
+    }),
+    schedule: () => {},
+  });
+  assert.equal(empty.hidden, false);
+  assert.match(empty.body.innerHTML, /qsl-showcase-placeholder/);
+  assert.match(empty.body.innerHTML, />0</);
+  assert.doesNotMatch(empty.body.innerHTML, /最近动态|iframe/i);
+});
+
+test('stock, thumbnails, and English labels follow the payload', () => {
+  const urls = showcaseUrls('https://qsl.ba4slt.cn');
+  const result = interpretShowcase(200, {
+    code: 'QSL-0000',
+    data: {
+      station: { call_sign: 'BA4SLT', grid: 'OM93ab' },
+      counts: { qso: 1, cards_sent: 4, cards_signed: 3, cards_received: 2 },
+      recent: [{ call_sign: 'BG2ABC', date: '2026-11-10', time: '08:15', mode: 'FT8' }],
+      cards: [
+        { card_version: 'luotianyi', image_path: '/uploads/46953a5c5e25352cc9f6af28.jpg', available_inventory: 150, version_total: 200 },
+        { card_version: 'spring', image_path: '/uploads/second.png' },
+      ],
+    },
+  });
+  const html = renderShowcaseBody(result, urls, 'about', { fallbackCall: 'BA4SLT', lang: 'en', now: Date.parse('2026-11-15T05:00:00Z') });
+  assert.equal(result.data.station.grid, 'OM93ab');
+  assert.equal(result.data.cards[0].available, 150);
+  assert.equal(result.data.cards[0].total, 200);
+  assert.match(html, /BA4SLT · OM93ab/);
+  assert.match(html, /150 \/ 200 left/);
+  assert.match(html, /qsl-showcase-thumb/);
+  assert.match(html, /Request a card/);
+  assert.match(html, /Recent/);
+  assert.match(html, /FT8/);
+  assert.match(html, />Sent</);
+  assert.doesNotMatch(html, /iframe/i);
 });
 
 test('config keeps the showcase origin and rejects a non-http URL', () => {

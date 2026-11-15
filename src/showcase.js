@@ -2,6 +2,9 @@
 hamqsl 对外展示。页面只放挂载点，浏览器再去读公开 JSON。
 构建不请求 QSL 站点，站点打不开时页面照样生成。
 地址留空就不输出组件，也不会去请求一个编出来的主机。
+卡片图打不开时用主题渐变占位。最近动态为空就不渲染那一块。
+呼号为空时用博客配置。线上换卡页是站点的 /apply。
+库存字段在卡片对象里有才显示；公开的 station-cards 接口目前没有跨域头，页面不去请求它。
 调用示例：
   const urls = showcaseUrls('https://qsl.example.com/', 8)
   const view = interpretShowcase(404, { code: 'QSL-PLUGIN-OFF' })
@@ -10,13 +13,11 @@ hamqsl 对外展示。页面只放挂载点，浏览器再去读公开 JSON。
 
 const RETRY_DELAYS = [60_000, 120_000, 300_000];
 const MAX_RETRIES = RETRY_DELAYS.length;
+const FETCH_TIMEOUT_MS = 8_000;
+const GUARD_DELAY_MS = 9_000;
+const GRID_FALLBACK = 'OM93nn';
 const UPLOAD_PATH = /^\/uploads\/([A-Za-z0-9][A-Za-z0-9._-]{0,180})$/;
-const COUNT_FIELDS = [
-  ['qso', '通联'],
-  ['cards_sent', '已寄出'],
-  ['cards_signed', '对方签收'],
-  ['cards_received', '收到卡片'],
-];
+const COUNT_KEYS = ['cards_sent', 'cards_signed', 'cards_received', 'qso'];
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -73,6 +74,7 @@ export function showcaseUrls(siteUrl, limit = 8) {
     feed: `${origin}/api/public/ext/showcase?limit=${capped}`,
     badge: `${origin}/api/public/ext/showcase/badge.svg`,
     page: `${origin}/showcase`,
+    apply: `${origin}/apply`,
   };
 }
 
@@ -90,7 +92,7 @@ export function sanitizeShowcase(data) {
   const stationSrc = source.station && typeof source.station === 'object' ? source.station : {};
   const countsSrc = source.counts && typeof source.counts === 'object' ? source.counts : {};
   const counts = {};
-  for (const [key] of COUNT_FIELDS) {
+  for (const key of COUNT_KEYS) {
     const value = readCount(countsSrc[key]);
     if (value != null) counts[key] = value;
   }
@@ -107,6 +109,7 @@ export function sanitizeShowcase(data) {
         freq: readText(item.freq, 24),
         rst_sent: readText(item.rst_sent, 8),
         rst_rcvd: readText(item.rst_rcvd, 8),
+        status: readText(item.status, 24),
       };
     }).filter((row) => Object.values(row).some(Boolean))
     : [];
@@ -118,7 +121,12 @@ export function sanitizeShowcase(data) {
       const imagePath = typeof item.image_path === 'string' ? item.image_path.trim() : '';
       const cardVersion = readText(item.card_version, 80);
       if (!imagePath && !cardVersion) continue;
-      cards.push({ card_version: cardVersion, image_path: imagePath });
+      const next = { card_version: cardVersion, image_path: imagePath };
+      const available = readCount(item.available_inventory ?? item.available);
+      const total = readCount(item.version_total ?? item.total);
+      if (available != null) next.available = available;
+      if (total != null) next.total = total;
+      cards.push(next);
     }
   }
 
@@ -127,6 +135,7 @@ export function sanitizeShowcase(data) {
       call_sign: readText(stationSrc.call_sign, 32),
       name: readText(stationSrc.name, 80),
       name_en: readText(stationSrc.name_en, 80),
+      grid: readText(stationSrc.grid || stationSrc.grid_square || stationSrc.locator || stationSrc.maidenhead, 16),
     },
     counts,
     recent,
@@ -162,105 +171,236 @@ export function retryDelayMs(response, attempt = 0, now = Date.now()) {
   return Math.min(Math.max(60_000, hinted, fallback), 10 * 60_000);
 }
 
-function pageLink(urls, label) {
-  if (!urls?.page) return '';
-  return `<a href="${escapeHtml(urls.page)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+function isEnglish(lang) {
+  return /^en\b/i.test(String(lang || ''));
 }
 
-function countsHtml(counts) {
-  const cells = COUNT_FIELDS.map(([key, label]) => {
-    const value = counts?.[key];
-    if (value == null) return '';
-    return `<div class="qsl-showcase-count"><strong>${value}</strong><span>${escapeHtml(label)}</span></div>`;
-  }).join('');
-  return cells ? `<div class="qsl-showcase-counts">${cells}</div>` : '';
+function copyFor(lang) {
+  if (isEnglish(lang)) {
+    return {
+      title: 'QSL cards',
+      apply: 'Request a card →',
+      call: (call, grid) => `${call} · ${grid}`,
+      sent: 'Sent',
+      signed: 'Signed',
+      received: 'Received',
+      qso: 'QSO',
+      recent: 'Recent',
+      stock: (available, total) => (total == null ? `${available} left` : `${available} / ${total} left`),
+      fail: 'QSL showcase is unavailable',
+      off: 'Public showcase is off',
+      go: (host) => `Open ${host}`,
+      alt: (call, name) => `${call} QSL card: ${name}`,
+      loading: 'Loading QSL showcase',
+      thumb: (name) => `Show card ${name}`,
+      justNow: 'just now',
+      minutes: (n) => `${n} min ago`,
+      hours: (n) => `${n} hr ago`,
+      days: (n) => `${n} days ago`,
+    };
+  }
+  return {
+    title: 'QSL 卡片',
+    apply: '申请换卡 →',
+    call: (call, grid) => `呼号 ${call} · ${grid}`,
+    sent: '已发出',
+    signed: '已签收',
+    received: '已收到',
+    qso: 'QSO',
+    recent: '最近动态',
+    stock: (available, total) => (total == null ? `余 ${available}` : `余 ${available} / ${total}`),
+    fail: 'QSL 展示暂时无法加载',
+    off: '对外展示未开启',
+    go: (host) => `前往 ${host}`,
+    alt: (call, name) => `${call} QSL 卡面：${name}`,
+    loading: '正在读取 QSL 展示',
+    thumb: (name) => `切换到卡面 ${name}`,
+    justNow: '刚刚',
+    minutes: (n) => `${n} 分钟前`,
+    hours: (n) => `${n} 小时前`,
+    days: (n) => `${n} 天前`,
+  };
 }
 
-function rstCell(row) {
-  if (!row.rst_sent && !row.rst_rcvd) return '';
-  return `${escapeHtml(row.rst_sent)}/${escapeHtml(row.rst_rcvd)}`;
+const MARK = `<svg class="qsl-showcase-mark" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g fill="currentColor"><circle cx="12" cy="5" r="2.6"/><circle cx="17.6" cy="9.2" r="2.6"/><circle cx="15.5" cy="15.8" r="2.6"/><circle cx="8.5" cy="15.8" r="2.6"/><circle cx="6.4" cy="9.2" r="2.6"/><circle cx="12" cy="11.2" r="1.7"/></g></svg>`;
+
+function hostName(urls) {
+  return String(urls?.origin || '').replace(/^https?:\/\//, '');
 }
 
-function recentHtml(recent) {
-  if (!recent.length) return '<p class="qsl-showcase-note">最近没有公开通联。</p>';
-  const rows = recent.map((row) => `
-        <tr>
-          <td>${escapeHtml(row.call_sign)}</td>
-          <td>${escapeHtml(row.date)}</td>
-          <td>${escapeHtml(row.time)}</td>
-          <td>${escapeHtml(row.band)}</td>
-          <td>${escapeHtml(row.mode)}</td>
-          <td>${escapeHtml(row.freq)}</td>
-          <td>${rstCell(row)}</td>
-        </tr>`).join('');
-  return `
-      <div class="qsl-showcase-log-wrap">
-        <table class="qsl-showcase-log">
-          <thead>
-            <tr>
-              <th scope="col">呼号</th>
-              <th scope="col">日期</th>
-              <th scope="col">时间</th>
-              <th scope="col">波段</th>
-              <th scope="col">模式</th>
-              <th scope="col">频率</th>
-              <th scope="col">RST</th>
-            </tr>
-          </thead>
-          <tbody>${rows}
-          </tbody>
-        </table>
-      </div>`;
+function externalLink(href, label) {
+  if (!href) return '';
+  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
 }
 
-function cardsHtml(cards, origin) {
-  const figures = cards.map((card) => {
+function stockText(copy, card) {
+  if (!card || card.available == null) return '';
+  return copy.stock(card.available, card.total ?? null);
+}
+
+function stationCall(station, fallbackCall) {
+  return station?.call_sign || fallbackCall || '';
+}
+
+function stationGrid(station) {
+  return station?.grid || GRID_FALLBACK;
+}
+
+function relativeTime(date, time, copy, now = Date.now()) {
+  if (!date) return '';
+  const stamp = Date.parse(`${date}T${time || '00:00'}:00+08:00`);
+  if (Number.isNaN(stamp)) return date;
+  const minutes = Math.round((now - stamp) / 60_000);
+  if (minutes < 0) return date;
+  if (minutes < 1) return copy.justNow;
+  if (minutes < 60) return copy.minutes(minutes);
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return copy.hours(hours);
+  const days = Math.round(hours / 24);
+  if (days < 30) return copy.days(days);
+  return date;
+}
+
+function statusText(row) {
+  return row.status || row.mode || row.band || '';
+}
+
+function heroHtml(card, copy, call, origin) {
+  const name = card?.card_version || '';
+  const src = card ? cardImageUrl(origin, card.image_path) : '';
+  const stock = stockText(copy, card);
+  const alt = copy.alt(call || 'QSL', name || 'QSL');
+  const photo = src
+    ? `<img class="qsl-showcase-photo" data-qsl-hero src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="1080" height="720" loading="lazy" decoding="async">`
+    : '';
+  const overlay = name || stock
+    ? `<p class="qsl-showcase-overlay"><span data-qsl-name>${escapeHtml(name)}</span>${stock ? `<span data-qsl-stock>${escapeHtml(stock)}</span>` : '<span data-qsl-stock hidden></span>'}</p>`
+    : '<p class="qsl-showcase-overlay" hidden><span data-qsl-name></span><span data-qsl-stock hidden></span></p>';
+  const readyClass = src ? '' : ' is-fallback';
+  return `<div class="qsl-showcase-hero${readyClass}">
+      ${photo}
+      <div class="qsl-showcase-placeholder" aria-hidden="true"><strong>${escapeHtml(call || 'QSL')}</strong><span>QSL</span></div>
+      ${overlay}
+    </div>`;
+}
+
+function thumbsHtml(cards, copy, call, origin) {
+  if (!cards || cards.length < 2) return '';
+  const buttons = cards.map((card, index) => {
+    const name = card.card_version || 'QSL';
     const src = cardImageUrl(origin, card.image_path);
-    const caption = card.card_version
-      ? `<figcaption>${escapeHtml(card.card_version)}</figcaption>`
-      : '';
-    if (!src) {
-      return card.card_version ? `<figure class="qsl-showcase-card">${caption}</figure>` : '';
-    }
-    return `
-        <figure class="qsl-showcase-card">
-          <a href="${escapeHtml(src)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeHtml(src)}" alt="${escapeHtml(card.card_version || 'QSL 卡片')}" loading="lazy" decoding="async">
-          </a>
-          ${caption}
-        </figure>`;
+    const stock = stockText(copy, card);
+    const alt = copy.alt(call || 'QSL', name);
+    const image = src
+      ? `<img src="${escapeHtml(src)}" alt="" width="96" height="64" loading="lazy" decoding="async">`
+      : `<span>${escapeHtml(name)}</span>`;
+    return `<button type="button" class="qsl-showcase-thumb${index === 0 ? ' is-current' : ''}" data-qsl-thumb="${index}" data-src="${escapeHtml(src)}" data-name="${escapeHtml(name)}" data-stock="${escapeHtml(stock)}" data-alt="${escapeHtml(alt)}" aria-pressed="${index === 0 ? 'true' : 'false'}" aria-label="${escapeHtml(copy.thumb(name))}">${image}</button>`;
   }).join('');
-  return figures ? `<div class="qsl-showcase-cards">${figures}</div>` : '';
+  return `<div class="qsl-showcase-thumbs">${buttons}</div>`;
 }
 
-export function renderShowcaseBody(result, urls, variant = 'about') {
-  if (!result || result.state === 'off') {
-    return '<p class="qsl-showcase-note">对外展示未开启。</p>';
-  }
-  if (result.state !== 'ready' || !urls) {
-    return `<p class="qsl-showcase-note">QSL 展示暂时读不到。${pageLink(urls, '打开 QSL 站')}</p>`;
-  }
+function statsHtml(copy, counts) {
+  const items = [
+    ['cards_sent', copy.sent],
+    ['cards_signed', copy.signed],
+    ['cards_received', copy.received],
+    ['qso', copy.qso],
+  ];
+  const cells = items.map(([key, label]) => {
+    const value = counts?.[key] ?? 0;
+    return `<div class="qsl-showcase-stat"><strong data-qsl-count="${value}">${value}</strong><span>${escapeHtml(label)}</span></div>`;
+  }).join('');
+  return `<div class="qsl-showcase-stats">${cells}</div>`;
+}
+
+function activityHtml(copy, recent, now) {
+  const rows = (recent || []).slice(0, 3);
+  if (!rows.length) return '';
+  const items = rows.map((row) => {
+    const badge = statusText(row);
+    const when = relativeTime(row.date, row.time, copy, now);
+    const iso = row.date ? `${row.date}T${row.time || '00:00'}:00+08:00` : '';
+    return `<li class="qsl-showcase-activity"><span class="qsl-showcase-activity-call">${escapeHtml(row.call_sign)}</span>${badge ? `<span class="qsl-showcase-chip">${escapeHtml(badge)}</span>` : ''}${when ? `<time datetime="${escapeHtml(iso)}">${escapeHtml(when)}</time>` : ''}</li>`;
+  }).join('');
+  return `<div class="qsl-showcase-activity-block"><h3>${escapeHtml(copy.recent)}</h3><ul>${items}</ul></div>`;
+}
+
+function panelHtml(copy, urls, call, grid, main) {
+  const apply = externalLink(urls?.apply, copy.apply);
+  return `<div class="qsl-showcase-panel">
+      <div class="qsl-showcase-heading"><h2>${MARK}<span>${escapeHtml(copy.title)}</span></h2><p class="qsl-showcase-meta">${escapeHtml(copy.call(call, grid))}</p></div>
+      ${apply ? apply.replace('<a ', '<a class="qsl-showcase-apply" ') : ''}
+      <div class="qsl-showcase-main">${main}</div>
+    </div>`;
+}
+
+function loadingHtml(copy, urls, call, grid) {
+  const main = `<div class="qsl-showcase-skel-hero"></div><div class="qsl-showcase-skel-stats" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`;
+  return `${panelHtml(copy, urls, call, grid, main)}<p class="qsl-showcase-sr">${escapeHtml(copy.loading)}</p>`;
+}
+
+function noticeHtml(copy, urls, message) {
+  const host = hostName(urls);
+  const link = externalLink(urls?.origin, copy.go(host || 'QSL'));
+  return `<div class="qsl-showcase-error"><p>${escapeHtml(message)}</p>${link ? `<p>${link}</p>` : ''}</div>`;
+}
+
+export function renderShowcaseBody(result, urls, variant = 'about', options = {}) {
+  const copy = copyFor(options.lang);
+  if (!result || result.state === 'off') return noticeHtml(copy, urls, copy.off);
+  if (result.state !== 'ready' || !urls) return noticeHtml(copy, urls, copy.fail);
 
   const data = result.data || {};
   const station = data.station || {};
-  const call = station.call_sign || '';
-  const name = station.name || station.name_en || '';
-  const badge = `
-      <a class="qsl-showcase-badge" href="${escapeHtml(urls.page)}" target="_blank" rel="noopener noreferrer">
-        <img src="${escapeHtml(urls.badge)}" width="480" height="132" alt="${escapeHtml(call ? `${call} 的 QSL 展示` : 'QSL 展示')}">
-      </a>`;
-  const nameHtml = name ? `<p class="qsl-showcase-station">${escapeHtml(name)}</p>` : '';
-  const counts = countsHtml(data.counts);
-  if (variant === 'home') {
-    return `${badge}${nameHtml}${counts}<p class="qsl-showcase-note">${pageLink(urls, '查看展示页')}</p>`;
-  }
+  const call = stationCall(station, readText(options.fallbackCall, 32));
+  const grid = stationGrid(station);
+  const cards = data.cards || [];
+  const origin = urls.origin;
+  const recent = activityHtml(copy, data.recent, options.now);
+  const sideClass = recent ? 'qsl-showcase-side' : 'qsl-showcase-side is-stats-only';
+  const main = `<div class="qsl-showcase-stage">${heroHtml(cards[0], copy, call, origin)}${thumbsHtml(cards, copy, call, origin)}</div><div class="${sideClass}">${statsHtml(copy, data.counts)}${recent}</div>`;
+  return panelHtml(copy, urls, call, grid, main);
+}
 
-  const cards = cardsHtml(data.cards || [], urls.origin);
-  return `${badge}${nameHtml}${counts}
-      <h3>最近通联</h3>
-      ${recentHtml(data.recent || [])}
-      ${cards ? `<h3>卡片</h3>${cards}` : ''}
-      <p class="qsl-showcase-note">这些数字来自 QSL 站点，不是本站的通联日志。${pageLink(urls, '打开展示页')}</p>`;
+function showcaseGuardScript() {
+  return `<script data-cfasync="false">
+    window.setTimeout(function () {
+      var nodes = document.querySelectorAll('[data-qsl-body]');
+      for (var i = 0; i < nodes.length; i++) {
+        var body = nodes[i];
+        if (body.getAttribute('data-qsl-settled') === '1') continue;
+        var section = body.closest('[data-qsl-showcase]');
+        body.setAttribute('data-qsl-settled', '1');
+        if (section && section.getAttribute('data-variant') === 'home') {
+          section.setAttribute('hidden', '');
+          body.textContent = '';
+          continue;
+        }
+        var en = /^en/i.test(document.documentElement.lang || '');
+        var site = section ? (section.getAttribute('data-site') || '') : '';
+        var host = site.replace(/^https?:\/\//, '');
+        var message = en ? 'QSL showcase is unavailable' : 'QSL 展示暂时无法加载';
+        var label = en ? ('Open ' + host) : ('前往 ' + host);
+        body.textContent = '';
+        var box = document.createElement('div');
+        box.className = 'qsl-showcase-error';
+        var text = document.createElement('p');
+        text.textContent = message;
+        box.appendChild(text);
+        if (site) {
+          var line = document.createElement('p');
+          var link = document.createElement('a');
+          link.href = site;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = label;
+          line.appendChild(link);
+          box.appendChild(line);
+        }
+        body.appendChild(box);
+      }
+    }, ${GUARD_DELAY_MS});
+  </script>`;
 }
 
 export function renderShowcaseWidget(config, { variant = 'about' } = {}) {
@@ -268,31 +408,126 @@ export function renderShowcaseWidget(config, { variant = 'about' } = {}) {
   const urls = showcaseUrls(block?.siteUrl, block?.limit);
   if (!urls) return '';
   const kind = variant === 'home' ? 'home' : 'about';
-  const title = kind === 'home' ? 'QSL 展示' : 'QSL 卡对外展示';
-  const hidden = kind === 'home' ? ' hidden' : '';
+  const lang = config.language || 'zh-CN';
+  const copy = copyFor(lang);
+  const fallbackCall = readText(config.callsign || config.title || '', 32) || 'BA4SLT';
+  const body = loadingHtml(copy, urls, fallbackCall, GRID_FALLBACK);
   return `
-    <section class="qsl-showcase qsl-showcase-${kind} card-glass"${hidden} data-qsl-showcase data-site="${escapeHtml(urls.origin)}" data-limit="${urls.limit}" data-variant="${kind}" aria-label="${escapeHtml(title)}">
-      <div class="qsl-showcase-head">
-        <p class="eyebrow">LIVE QSL</p>
-        <h2>${escapeHtml(title)}</h2>
-      </div>
-      <div data-qsl-body aria-live="polite">
-        <p class="qsl-showcase-note">正在读取 QSL 展示…</p>
+    <section class="qsl-showcase qsl-showcase-${kind} card-glass" data-qsl-showcase data-site="${escapeHtml(urls.origin)}" data-limit="${urls.limit}" data-variant="${kind}" data-callsign="${escapeHtml(fallbackCall)}" data-lang="${escapeHtml(lang)}" aria-label="${escapeHtml(copy.title)}">
+      <div data-qsl-body aria-live="polite" aria-busy="true">
+        ${body}
       </div>
       <noscript>
-        <p class="qsl-showcase-note">${pageLink(urls, '打开 QSL 展示页')}</p>
+        <style>.qsl-showcase [data-qsl-body]{display:none}</style>
+        <p class="qsl-showcase-note">${externalLink(urls.apply, copy.apply)}</p>
       </noscript>
-    </section>`;
+    </section>
+    ${showcaseGuardScript()}`;
+}
+
+function markSettled(body) {
+  if (typeof body?.setAttribute === 'function') body.setAttribute('data-qsl-settled', '1');
+}
+
+function markHero(img) {
+  const hero = img?.closest?.('.qsl-showcase-hero');
+  if (!hero?.classList) return;
+  const ok = img.naturalWidth > 0;
+  hero.classList.toggle('is-ready', ok);
+  hero.classList.toggle('is-fallback', !ok);
+}
+
+function bindHero(root) {
+  const img = root.querySelector('[data-qsl-hero]');
+  if (!img) return;
+  if (img.complete) markHero(img);
+  else {
+    img.addEventListener('load', () => markHero(img), { once: true });
+    img.addEventListener('error', () => markHero(img), { once: true });
+  }
+}
+
+function selectCard(root, button) {
+  const stage = button.closest('.qsl-showcase-stage') || root;
+  const hero = stage.querySelector('.qsl-showcase-hero');
+  const img = stage.querySelector('[data-qsl-hero]');
+  stage.querySelectorAll('[data-qsl-thumb]').forEach((el) => {
+    const current = el === button;
+    el.classList.toggle('is-current', current);
+    el.setAttribute('aria-pressed', current ? 'true' : 'false');
+  });
+  const name = stage.querySelector('[data-qsl-name]');
+  const stock = stage.querySelector('[data-qsl-stock]');
+  if (name) name.textContent = button.getAttribute('data-name') || '';
+  if (stock) {
+    const text = button.getAttribute('data-stock') || '';
+    stock.hidden = !text;
+    stock.textContent = text;
+  }
+  const overlay = stage.querySelector('.qsl-showcase-overlay');
+  if (overlay) overlay.hidden = !(button.getAttribute('data-name') || button.getAttribute('data-stock'));
+  if (!hero) return;
+  const src = button.getAttribute('data-src') || '';
+  if (!src) {
+    hero.classList.add('is-fallback');
+    hero.classList.remove('is-ready');
+    if (img) img.removeAttribute('src');
+    return;
+  }
+  if (!img) return;
+  hero.classList.remove('is-ready', 'is-fallback');
+  img.alt = button.getAttribute('data-alt') || '';
+  img.src = src;
+  if (img.complete) markHero(img);
+  else {
+    img.addEventListener('load', () => markHero(img), { once: true });
+    img.addEventListener('error', () => markHero(img), { once: true });
+  }
+}
+
+function animateCounts(root) {
+  if (typeof root.querySelectorAll !== 'function') return;
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null;
+  root.querySelectorAll('[data-qsl-count]').forEach((el) => {
+    const target = Number(el.getAttribute('data-qsl-count'));
+    if (!Number.isFinite(target) || reduce || !frame) {
+      el.textContent = String(target);
+      return;
+    }
+    const start = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const clock = typeof performance !== 'undefined' && performance.now ? () => performance.now() : () => Date.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / 700);
+      el.textContent = String(Math.round(target * (1 - (1 - t) ** 3)));
+      if (t < 1) frame(tick);
+    };
+    frame(tick);
+  });
+}
+
+function bindShowcaseMedia(root) {
+  if (typeof root?.querySelectorAll !== 'function') return;
+  bindHero(root);
+  root.querySelectorAll('[data-qsl-thumb]').forEach((button) => {
+    button.addEventListener('click', () => selectCard(root, button));
+  });
+  animateCounts(root);
 }
 
 function paintShowcase(section, body, result, urls) {
   const variant = section.getAttribute('data-variant') === 'home' ? 'home' : 'about';
-  const hide = variant === 'home' && result?.state !== 'ready';
+  const failed = !result || result.state !== 'ready';
+  const hide = variant === 'home' && failed;
   section.hidden = hide;
-  body.innerHTML = hide ? '' : renderShowcaseBody(result, urls, variant);
-  if (typeof section.setAttribute === 'function') {
-    section.setAttribute('aria-busy', 'false');
-  }
+  markSettled(body);
+  body.innerHTML = hide ? '' : renderShowcaseBody(result, urls, variant, {
+    fallbackCall: section.getAttribute('data-callsign') || '',
+    lang: section.getAttribute('data-lang') || '',
+  });
+  if (!hide) bindShowcaseMedia(body);
+  if (typeof section.setAttribute === 'function') section.setAttribute('aria-busy', 'false');
+  if (typeof body.setAttribute === 'function') body.setAttribute('aria-busy', 'false');
 }
 
 export async function refreshShowcase(section, options = {}) {
@@ -302,9 +537,7 @@ export async function refreshShowcase(section, options = {}) {
   const body = section.querySelector('[data-qsl-body]');
   if (!urls || !body) return;
 
-  if (typeof section.setAttribute === 'function') {
-    section.setAttribute('aria-busy', 'true');
-  }
+  if (typeof section.setAttribute === 'function') section.setAttribute('aria-busy', 'true');
 
   let attempt = 0;
   let generation = 0;
@@ -312,18 +545,24 @@ export async function refreshShowcase(section, options = {}) {
   async function run() {
     const ticket = ++generation;
     let response = null;
+    let timer = null;
     try {
+      const controller = typeof AbortController === 'function' ? new AbortController() : null;
+      if (controller) timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       response = await fetchImpl(urls.feed, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         credentials: 'omit',
+        ...(controller ? { signal: controller.signal } : {}),
       });
     } catch {
+      if (timer) clearTimeout(timer);
       if (ticket !== generation) return;
       paintShowcase(section, body, { state: 'error', retry: true }, urls);
       arm(null);
       return;
     }
+    if (timer) clearTimeout(timer);
 
     if (ticket !== generation) return;
     let payload = null;

@@ -240,7 +240,7 @@ ${content}
     </svg>
   </button>
 
-  ${qslOrigin ? `<script type="module" src="${assetUrl('/showcase-client.js')}"></script>` : ''}
+  ${qslOrigin ? `<script data-cfasync="false" type="module" src="${assetUrl('/showcase-client.js')}"></script>` : ''}
   <script src="${assetUrl('/script.js')}" defer></script>
 </body>
 </html>`;
