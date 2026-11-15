@@ -69,6 +69,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (event.request.destination === 'script' || event.request.destination === 'style' || event.request.destination === 'worker') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(caches.match(event.request).then((cached) => {
     const network = fetch(event.request)
       .then((response) => {

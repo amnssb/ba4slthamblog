@@ -85,8 +85,11 @@ test('showcase mount is allowed to reach only the configured QSL origin', () => 
 
   assert.match(home, /connect-src 'self' https:\/\/api\.openai\.com https:\/\/api\.deepseek\.com https:\/\/api\.moonshot\.cn https:\/\/api\.siliconflow\.cn https:\/\/qsl\.ba4slt\.cn;/);
   assert.match(home, /src="\/radio\/showcase-client\.js\?v=abc123"/);
+  assert.match(home, /data-cfasync="false" type="module" src="\/radio\/showcase-client\.js\?v=abc123"/);
   assert.match(home, /data-variant="home"/);
+  assert.match(home, /data-callsign="BA4TEST"/);
   assert.match(about, /data-variant="about"/);
+  assert.match(about, /data-callsign="BA4TEST"/);
   assert.match(about, /业余无线电信息/);
   assert.doesNotMatch(home, /iframe/i);
   assert.doesNotMatch(renderLayout(config, { title: 'Logs', content: '<p>Content</p>', pathname: '/logs/' }), /showcase-client\.js|qsl\.ba4slt\.cn/);

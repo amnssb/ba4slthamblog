@@ -76,6 +76,7 @@ ${Array.from({ length: totalPages }, (_, i) => {
 
   const content = `
 ${headerHtml}
+    ${renderShowcaseWidget(config, { variant: 'home' })}
     <div class="home-layout">
       <section class="content-section latest-posts">
         <div class="section-heading">
@@ -91,7 +92,6 @@ ${postsHtml}
 ${paginationHtml}
       </section>
       <aside class="home-aside">
-        ${renderShowcaseWidget(config, { variant: 'home' })}
         <div class="tags-section">
           <p class="eyebrow">EXPLORE</p>
           <h2>热门标签</h2>
